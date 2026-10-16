@@ -379,7 +379,7 @@ hr.divider {
 
 .contact { padding: 0.2rem 0 1rem; }
 
-.contact-form { display: grid; max-width: 32rem; }
+.contact-form { display: grid; max-width: 32rem; position: relative; }
 .contact-form > * + * { margin-top: 1rem; }
 @supports (gap: 1rem) {
   .contact-form { gap: 1rem; }
@@ -647,9 +647,26 @@ input:focus, textarea:focus, select:focus {
 .custom-form textarea { min-height: 7rem; }
 .custom-form .btn { min-height: 48px; }
 .hint { display: block; color: var(--muted); font-weight: 400; font-size: 1rem; }
-#custom-msg { margin: 0; font-weight: 600; }
-#custom-msg.err { color: #8a3d16; }
-#custom-msg.ok { color: var(--oxblood); }
+#custom-msg, #contact-msg { margin: 0; font-weight: 600; }
+#custom-msg.err, #contact-msg.err { color: #8a3d16; }
+#custom-msg.ok, #contact-msg.ok { color: var(--oxblood); }
+.order-by-message { margin: 0.15rem 0 0; }
+.order-by-message a, a.order-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--oxblood);
+}
+.draft-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: var(--hair);
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.sheet-list { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+.sheet-list li + li { margin-top: 0.4rem; }
 .sheet a { color: var(--oxblood); }
 .expert-draft p + p, .demo-note p + p { margin-top: 0.55rem; }
 .hp {

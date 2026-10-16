@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Delivery — Craftedimension</title>
+  <meta name="description" content="UK delivery by Royal Mail for made-to-order Craftedimension prints." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a>
+    <nav aria-label="Primary">
+      <a href="/#products">Shop</a>
+      <a href="/#about">About</a>
+      <a href="/#contact">Contact</a>
+      <a href="/#cart">Basket</a>
+    </nav>
+  </header>
+  <main>
+    <article class="sheet">
+      <h1>Delivery</h1>
+      <div class="draft-banner"><strong>Draft — for owner review.</strong> Replace [OWNER NAME], [CONTACT EMAIL] and [BUSINESS ADDRESS] before publishing.</div>
+      <p>We deliver within the United Kingdom by Royal Mail. We do not currently post outside the UK.</p>
+      <h2>Made to order</h2>
+      <p>Prints are made to order. Making the piece usually takes 3–7 days. Royal Mail transit time is on top of that, and we will email you when the parcel is posted.</p>
+      <h2>Postage</h2>
+      <p>UK postage is £3.50. It is free when the goods in the order come to £30 or more. The amount is shown in the basket before you pay.</p>
+      <p>The shop is run by [OWNER NAME], [BUSINESS ADDRESS]. Questions about a delivery: [CONTACT EMAIL]. See also <a href="/returns">returns</a>.</p>
+    </article>
+  </main>
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Craftedimension</span>
+    <a href="/privacy">Privacy</a>
+    <a href="/delivery">Delivery</a>
+    <a href="/returns">Returns</a>
+    <a href="/terms">Terms</a>
+    <a href="/materials">Materials</a>
+    <a href="/custom">Custom print</a>
+    <span class="note">Secure payments by Stripe</span>
+  </footer>
+  <script>
+    (function () {
+      var app = document.documentElement.getAttribute('data-app') === '1' ||
+        navigator.userAgent.indexOf('CraftedimensionApp') !== -1;
+      if (!app) return;
+      document.querySelectorAll('a[href="/admin"], a[href="/admin/"]').forEach(function (a) { a.remove(); });
+    })();
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

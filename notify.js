@@ -45,4 +45,17 @@ async function customRequest(r) {
   return { emailed: true };
 }
 
-module.exports = { orderPaid, formatOrder, customRequest };
+function formatContact(r) {
+  return `New message from ${r.name} <${r.email}>\n\n${r.message}\n`;
+}
+
+async function contactMessage(r) {
+  const text = formatContact(r);
+  const t = getTransport(), to = process.env.OWNER_EMAIL;
+  if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
+  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Message from ${r.name}`.slice(0, 150), text });
+  console.log(`[notify] emailed ${to} about message ${r.id}`);
+  return { emailed: true };
+}
+
+module.exports = { orderPaid, formatOrder, customRequest, contactMessage };

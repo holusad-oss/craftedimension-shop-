@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terms — Craftedimension</title>
+  <meta name="description" content="Terms for orders from the Craftedimension shop." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a>
+    <nav aria-label="Primary">
+      <a href="/#products">Shop</a>
+      <a href="/#about">About</a>
+      <a href="/#contact">Contact</a>
+      <a href="/#cart">Basket</a>
+    </nav>
+  </header>
+  <main>
+    <article class="sheet">
+      <h1>Terms</h1>
+      <div class="draft-banner"><strong>Draft — for owner review.</strong> Replace [OWNER NAME], [CONTACT EMAIL] and [BUSINESS ADDRESS] before publishing.</div>
+      <p>These terms cover orders placed with this shop. The shop is run by [OWNER NAME], [BUSINESS ADDRESS]. Email [CONTACT EMAIL].</p>
+      <h2>Orders</h2>
+      <p>A contract is made when we accept your order and, where card payments are open, when payment has been received. We may refuse an order if we cannot make the piece, if it is no longer available, or if a price was shown by mistake. Please read the <a href="/materials">materials guide</a> before you buy.</p>
+      <h2>Prices and payment</h2>
+      <p>Prices are in pounds sterling and include VAT where VAT is due. Postage is £3.50, or free when the goods total £30 or more. See <a href="/delivery">delivery</a>. Card payments are taken by Stripe on its checkout page. We never see or store your card number.</p>
+      <h2>Made to order and custom work</h2>
+      <p>Most prints are made after you order. Custom and personalised items are made to the description you give us. The 14-day cancellation right for those items is explained on the <a href="/returns">returns</a> page.</p>
+      <h2>Risk and title</h2>
+      <p>The goods are at our risk until they are delivered to the address you gave. They become yours when we have received payment in full.</p>
+      <h2>Liability</h2>
+      <p>We are responsible for loss or damage that is a foreseeable result of our breaking this contract or of our negligence, and for death or personal injury caused by our negligence. Nothing in these terms takes away your statutory rights. We are not liable for loss that could not reasonably have been expected, or for business losses if you are buying as a consumer.</p>
+      <h2>Privacy and law</h2>
+      <p>How we handle personal information is on the <a href="/privacy">privacy</a> page. These terms are governed by the law of England and Wales. The courts of England and Wales will hear disputes. If you live in Scotland or Northern Ireland you may also bring a claim in your local courts.</p>
+    </article>
+  </main>
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Craftedimension</span>
+    <a href="/privacy">Privacy</a>
+    <a href="/delivery">Delivery</a>
+    <a href="/returns">Returns</a>
+    <a href="/terms">Terms</a>
+    <a href="/materials">Materials</a>
+    <a href="/custom">Custom print</a>
+    <span class="note">Secure payments by Stripe</span>
+  </footer>
+  <script>
+    (function () {
+      var app = document.documentElement.getAttribute('data-app') === '1' ||
+        navigator.userAgent.indexOf('CraftedimensionApp') !== -1;
+      if (!app) return;
+      document.querySelectorAll('a[href="/admin"], a[href="/admin/"]').forEach(function (a) { a.remove(); });
+    })();
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

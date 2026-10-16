@@ -24,8 +24,8 @@
       display: block; width: 100%; margin-top: 0.35rem; min-height: 48px; font-size: 1.1rem;
     }
     .admin-form textarea { min-height: 7rem; }
-    .admin-form .check { display: flex; align-items: center; min-height: 48px; font-weight: 600; }
-    .admin-form .check input { width: 1.4rem; height: 1.4rem; min-height: 0; margin: 0 0.7rem 0 0; }
+    .admin-form .check, #showall-label { display: flex; align-items: center; min-height: 48px; font-weight: 600; }
+    .admin-form .check input, #showall-label input { width: 1.4rem; height: 1.4rem; min-height: 0; margin: 0 0.7rem 0 0; }
     .hint { display: block; margin-top: 0.3rem; color: var(--muted); font-weight: 400; font-size: 1rem; }
     #photo-preview { display: block; width: min(100%, 280px); height: auto; margin: 0 0 0.9rem; border: var(--hair); }
     #photo-preview[hidden] { display: none; }
@@ -112,8 +112,11 @@
     <h2>Custom requests</h2>
     <div id="custom-list"></div>
 
+    <h2>Messages</h2>
+    <div id="message-list"></div>
+
     <h2>Orders</h2>
-    <label class="check" style="display:flex;align-items:center;min-height:48px;margin-bottom:.5rem"><input type="checkbox" id="showall" style="width:1.4rem;height:1.4rem;min-height:0;margin:0 .7rem 0 0" onchange="load()"> Show unpaid and cancelled too</label>
+    <label class="check" id="showall-label"><input type="checkbox" id="showall"> Show unpaid and cancelled too</label>
     <div class="wrap">
       <table>
         <thead><tr><th>Order</th><th>When</th><th>Status</th><th>Customer</th><th>Ship to</th><th>Items</th><th>Total</th><th></th></tr></thead>
@@ -212,6 +215,12 @@
         <p>${esc(r.description)}</p>
         ${r.file ? `<p><a href="/api/admin/custom/${esc(r.id)}/file">${esc(r.file.filename)}</a></p>` : '<p>No file attached</p>'}
       </article>`).join('') || '<p class="muted">No custom requests yet.</p>';
+      const messages = (d.contactMessages || []).slice().reverse();
+      document.getElementById('message-list').innerHTML = messages.map(r => `<article class="pcard">
+        <h3>${esc(r.name)}</h3>
+        <p>${esc(r.email)} · ${esc(new Date(r.createdAt).toLocaleString('en-GB'))}</p>
+        <p>${esc(r.message)}</p>
+      </article>`).join('') || '<p class="muted">No messages yet.</p>';
       const addr = o => { const s = o.shipping; if (!s) return '—'; const a = s.address || {}; return [s.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).map(esc).join('<br>'); };
       const badge = o => { const s = o.status || 'demo'; return `<span class="status status-${esc(s)}">${esc(s)}</span>` + (o.sentAt ? `<br><small>${new Date(o.sentAt).toLocaleDateString('en-GB')}</small>` : '') + (o.note ? `<br><small>${esc(o.note)}</small>` : ''); };
       const show = document.getElementById('showall');
@@ -268,6 +277,7 @@
         } catch (err) { say(err.message, 'err'); }
       }
     });
+    document.getElementById('showall').addEventListener('change', () => load().catch(err => say(err.message, 'err')));
     load().catch(err => say(err.message, 'err'));
   </script>
 </body>

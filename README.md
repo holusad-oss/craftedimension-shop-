@@ -2,7 +2,7 @@
 
 Small Express shop for 3D printed products (FDM & resin) with live stock counts, Stripe Checkout (GBP, UK delivery) and a password-protected admin page.
 
-> Payments use Stripe Checkout. Without `STRIPE_SECRET_KEY` the shop still runs and checkout shows "payments aren't set up yet". Live keys are refused unless `STRIPE_ALLOW_LIVE=1`.
+> Payments use Stripe Checkout in test mode unless the owner deliberately sets `STRIPE_ALLOW_LIVE=1`. Without `STRIPE_SECRET_KEY` the shop still runs: the basket button reads "Card payments coming soon" and an "Order by message" link opens the contact form with the basket summary filled in. Live keys are refused unless `STRIPE_ALLOW_LIVE=1`.
 
 See `.env.example` for all settings. Webhook endpoint: `POST /api/stripe/webhook` (event `checkout.session.completed`, plus `checkout.session.expired` to release reserved stock). Paid orders appear in `/admin` where they can be marked as sent.
 
@@ -15,12 +15,13 @@ If `ADMIN_PASSWORD` is not set, a random password is generated and printed to th
 
 ## Data
 - `data/seed.json` – sample products (all marked as samples), including material, colour, size, detail, finish, care notes and lead time.
-- `data/db.json` – live products, stock, orders and custom requests; created from the seed on first start (git-ignored). Delete it to reset. On startup, missing product fields are filled in (sample names get the sample specs; anything else gets PLA or Standard resin, raw finish, and a 3–7 day lead time) without overwriting values already saved.
+- `data/db.json` – live products, stock, orders, custom requests and contact messages; created from the seed on first start (git-ignored). Delete it to reset. On startup, missing product fields are filled in (sample names get the sample specs; anything else gets PLA or Standard resin, raw finish, and a 3–7 day lead time) without overwriting values already saved.
 
 ## Deploy on Render
 - Runtime: Node · Build: `npm install` · Start: `node server.js`
 - Env: `ADMIN_PASSWORD` (required for a stable admin login). `PORT` is set by Render automatically.
 - Storage is a JSON file: on Render's free plan the disk is ephemeral, so stock/orders reset on every redeploy/restart. Attach a persistent disk mounted at `/opt/render/project/src/data` (paid) to keep them.
+- `GET /healthz` returns `ok` and is what `.github/workflows/keep-awake.yml` curls every 10 minutes, so a free Render service is less likely to spin down. GitHub may delay or disable scheduled runs on inactive repositories, so this is a best effort, not a guarantee. You can also run the workflow by hand.
 
 ## API
 - `GET /api/products[?type=fdm|resin]` — response includes `Access-Control-Allow-Origin: *`. Other public `GET /api/*` routes do too. Admin routes do not.
@@ -44,7 +45,13 @@ Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) 
 
 Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). With `DATABASE_URL` the bytes live in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The shop serves them at `/img/p/<id>.webp`.
 
-Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the request is written to the server log.
+Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. Contact messages (`POST /api/contact`) use the same honeypot and hourly limit and are stored with the shop data. Checkout is limited to 10 requests per 15 minutes per IP. Failed admin logins are limited to 10 per 15 minutes per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the message is written to the server log.
+
+Postgres also keeps contact messages in `contact_messages`.
+
+## Legal pages
+
+`/delivery`, `/returns` and `/terms` are linked from the footer, along with `/privacy`. They use `[OWNER NAME]`, `[CONTACT EMAIL]` and `[BUSINESS ADDRESS]` and each shows a "Draft — for owner review" banner. Replace the placeholders before launch.
 
 ## Materials, lead time and custom prints
 

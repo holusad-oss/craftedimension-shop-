@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Returns — Craftedimension</title>
+  <meta name="description" content="Cancellation and returns for Craftedimension orders." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a>
+    <nav aria-label="Primary">
+      <a href="/#products">Shop</a>
+      <a href="/#about">About</a>
+      <a href="/#contact">Contact</a>
+      <a href="/#cart">Basket</a>
+    </nav>
+  </header>
+  <main>
+    <article class="sheet">
+      <h1>Returns</h1>
+      <div class="draft-banner"><strong>Draft — for owner review.</strong> Replace [OWNER NAME], [CONTACT EMAIL] and [BUSINESS ADDRESS] before publishing.</div>
+      <h2>Standard items</h2>
+      <p>For standard items you can cancel under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013. You have 14 days after you receive the goods to tell us you are cancelling. You then have 14 days after telling us to send the goods back.</p>
+      <h2>Custom and personalised items</h2>
+      <p>Custom or personalised items, and other goods made to your specification, are exempt from that 14-day cancellation right unless they are faulty.</p>
+      <h2>Faulty items</h2>
+      <p>If an item is faulty, not as described, or not fit for purpose, you can reject it and ask for a refund under the Consumer Rights Act 2015. Contact us and we will put it right.</p>
+      <h2>How to return</h2>
+      <ol class="sheet-list">
+        <li>Email [CONTACT EMAIL] with your name, order number and whether you are cancelling a standard item or reporting a fault.</li>
+        <li>We will tell you the return address. Pack the piece so it will not be damaged in the post.</li>
+        <li>If you are cancelling a standard item, you pay the return postage unless we sent the wrong thing or it is faulty. If it is faulty, we refund the item and reasonable return postage.</li>
+        <li>Once we have received and checked the return, we refund the original payment method.</li>
+      </ol>
+      <p>The shop is run by [OWNER NAME], [BUSINESS ADDRESS].</p>
+    </article>
+  </main>
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Craftedimension</span>
+    <a href="/privacy">Privacy</a>
+    <a href="/delivery">Delivery</a>
+    <a href="/returns">Returns</a>
+    <a href="/terms">Terms</a>
+    <a href="/materials">Materials</a>
+    <a href="/custom">Custom print</a>
+    <span class="note">Secure payments by Stripe</span>
+  </footer>
+  <script>
+    (function () {
+      var app = document.documentElement.getAttribute('data-app') === '1' ||
+        navigator.userAgent.indexOf('CraftedimensionApp') !== -1;
+      if (!app) return;
+      document.querySelectorAll('a[href="/admin"], a[href="/admin/"]').forEach(function (a) { a.remove(); });
+    })();
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

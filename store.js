@@ -155,6 +155,7 @@ function migrateState(state) {
   if (!Array.isArray(state.products)) { state.products = []; changed = true; }
   if (!Array.isArray(state.orders)) { state.orders = []; changed = true; }
   if (!Array.isArray(state.customRequests)) { state.customRequests = []; changed = true; }
+  if (!Array.isArray(state.contactMessages)) { state.contactMessages = []; changed = true; }
   for (const p of state.products) if (migrateProduct(p)) changed = true;
   return changed;
 }
@@ -167,7 +168,7 @@ function seedState() {
     return { state, from: 'data/db.json', changed };
   }
   const s = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
-  const state = { products: s.map((p, i) => ({ id: i + 1, sample: true, ...p })), orders: [], customRequests: [], nextId: s.length + 1 };
+  const state = { products: s.map((p, i) => ({ id: i + 1, sample: true, ...p })), orders: [], customRequests: [], contactMessages: [], nextId: s.length + 1 };
   migrateState(state);
   return { state, from: 'data/seed.json', changed: true };
 }
@@ -247,7 +248,7 @@ class PgStore {
     const { Pool } = require('pg');
     const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url) || process.env.DATABASE_SSL === 'false';
     this.pool = new Pool({ connectionString: url, max: 3, ssl: local ? false : { rejectUnauthorized: false } });
-    this.kind = 'postgres'; this.seen = { p: new Map(), o: new Map(), c: new Map(), nextId: null }; this.chain = Promise.resolve(); this.pending = null;
+    this.kind = 'postgres'; this.seen = { p: new Map(), o: new Map(), c: new Map(), m: new Map(), nextId: null }; this.chain = Promise.resolve(); this.pending = null;
   }
   async init() {
     await this.pool.query(`
@@ -271,6 +272,11 @@ class PgStore {
         filename text NOT NULL,
         mime text NOT NULL,
         data bytea NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id text PRIMARY KEY,
+        created_at timestamptz NOT NULL,
+        data jsonb NOT NULL
       );`);
     const has = (await this.pool.query('SELECT 1 FROM meta WHERE key = $1', ['nextId'])).rowCount;
     if (!has) {
@@ -281,12 +287,14 @@ class PgStore {
     const products = (await this.pool.query('SELECT data FROM products ORDER BY id')).rows.map(r => r.data);
     const orders = (await this.pool.query('SELECT data FROM orders ORDER BY created_at, id')).rows.map(r => r.data);
     const customRequests = (await this.pool.query('SELECT data FROM custom_requests ORDER BY created_at, id')).rows.map(r => r.data);
+    const contactMessages = (await this.pool.query('SELECT data FROM contact_messages ORDER BY created_at, id')).rows.map(r => r.data);
     const nextId = (await this.pool.query('SELECT value FROM meta WHERE key = $1', ['nextId'])).rows[0].value;
     products.forEach(p => this.seen.p.set(p.id, JSON.stringify(p)));
     orders.forEach(o => this.seen.o.set(o.id, JSON.stringify(o)));
     customRequests.forEach(r => this.seen.c.set(r.id, JSON.stringify(r)));
+    contactMessages.forEach(r => this.seen.m.set(r.id, JSON.stringify(r)));
     this.seen.nextId = nextId;
-    const state = { products, orders, customRequests, nextId };
+    const state = { products, orders, customRequests, contactMessages, nextId };
     if (migrateState(state)) await this.writeDiff(state);
     console.log(`[store] Postgres connected: ${products.length} products, ${orders.length} orders, ${customRequests.length} custom requests`);
     return state;
@@ -308,6 +316,10 @@ class PgStore {
       for (const r of d.customRequests || []) {
         const j = JSON.stringify(r);
         if (this.seen.c.get(r.id) !== j) { await c.query('INSERT INTO custom_requests (id, created_at, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [r.id, r.createdAt || new Date().toISOString(), j]); this.seen.c.set(r.id, j); }
+      }
+      for (const r of d.contactMessages || []) {
+        const j = JSON.stringify(r);
+        if (this.seen.m.get(r.id) !== j) { await c.query('INSERT INTO contact_messages (id, created_at, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [r.id, r.createdAt || new Date().toISOString(), j]); this.seen.m.set(r.id, j); }
       }
       if (this.seen.nextId !== d.nextId) { await c.query('INSERT INTO meta (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', ['nextId', JSON.stringify(d.nextId)]); this.seen.nextId = d.nextId; }
       await c.query('COMMIT');

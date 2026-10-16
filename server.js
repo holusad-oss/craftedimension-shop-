@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const Stripe = require('stripe');
 const multer = require('multer');
 const sharp = require('sharp');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const notify = require('./notify');
 
 const PORT = process.env.PORT || 3000;
@@ -81,22 +83,49 @@ function withCustomFile(req, res, next) {
     });
   });
 }
-// In-memory, per process. Five accepted custom requests per IP per hour.
-const customHits = new Map();
-function customRateOk(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 60 * 1000;
-  let prev = customHits.get(ip) || [];
-  prev = prev.filter(t => now - t < windowMs);
-  if (prev.length >= 5) { customHits.set(ip, prev); return false; }
-  prev.push(now);
-  customHits.set(ip, prev);
-  if (customHits.size > 5000) customHits.clear();
-  return true;
-}
-
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', 1); // Render terminates HTTPS at its proxy
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      scriptSrc: ["'self'", 'https://js.stripe.com', "'unsafe-inline'"],
+      styleSrc: ["'self'", 'https://fonts.googleapis.com', "'unsafe-inline'"],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'", 'https://api.stripe.com', 'https://checkout.stripe.com'],
+      frameSrc: ['https://js.stripe.com', 'https://checkout.stripe.com'],
+      formAction: ["'self'", 'https://checkout.stripe.com'],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  strictTransportSecurity: { maxAge: 15552000, includeSubDomains: false },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginEmbedderPolicy: false,
+}));
+function tooMany(req, res) {
+  const msg = 'Too many requests from this address. Please try again later.';
+  if (String(req.originalUrl || '').startsWith('/api/')) return res.status(429).json({ error: msg });
+  res.status(429).type('text').send(msg);
+}
+const limitOpts = (windowMs, limit) => ({
+  windowMs, limit, standardHeaders: true, legacyHeaders: false, handler: tooMany,
+  skip: req => String((req.body && req.body.company) || '').trim() !== '',
+});
+const checkoutLimit = rateLimit(limitOpts(15 * 60 * 1000, 10));
+const customLimit = rateLimit(limitOpts(60 * 60 * 1000, 5));
+const contactLimit = rateLimit(limitOpts(60 * 60 * 1000, 5));
+const adminAuthLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+  skipSuccessfulRequests: true, handler: tooMany,
+});
+app.get('/healthz', (req, res) => res.status(200).type('text').send('ok'));
 // Stripe webhook needs the raw body for signature checks, so it is registered before express.json().
 app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
   if (!WEBHOOK_SECRET) { console.warn('[stripe] webhook received but STRIPE_WEBHOOK_SECRET is not set'); return res.status(503).send('Webhook not configured'); }
@@ -138,6 +167,8 @@ app.use((req, res, next) => {
 });
 app.use('/admin', notForApp);
 app.use('/api/admin', notForApp);
+app.use('/admin', adminAuthLimit);
+app.use('/api/admin', adminAuthLimit);
 
 const pub = p => {
   const o = {
@@ -194,7 +225,7 @@ app.get('/api/orders/:id/status', (req, res) => {
   res.json(o ? { status: o.status } : { status: 'unknown' });
 });
 
-app.post('/api/checkout/session', async (req, res) => {
+app.post('/api/checkout/session', checkoutLimit, async (req, res) => {
   if (!PAYMENTS_ON) return res.status(503).json({ error: "Payments aren't set up yet — please check back soon or contact us to order.", notConfigured: true });
   const { items } = req.body || {};
   if (!Array.isArray(items) || !items.length || items.length > 50) return res.status(400).json({ error: 'Your basket is empty.' });
@@ -412,7 +443,7 @@ app.put('/api/admin/products/:id', auth, withPhoto, async (req, res) => {
   res.json(next);
 });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-app.post('/api/custom', withCustomFile, async (req, res) => {
+app.post('/api/custom', withCustomFile, customLimit, async (req, res) => {
   const b = req.body || {};
   // Honeypot: pretend it worked, and do not count it toward the rate limit.
   if (String(b.company || '').trim()) return res.json({ ok: true });
@@ -430,8 +461,6 @@ app.post('/api/custom', withCustomFile, async (req, res) => {
   if (!(qty >= 1 && qty <= 100)) return res.status(400).json({ error: 'Quantity must be between 1 and 100.' });
   if (deadline.length > 40) return res.status(400).json({ error: 'Please keep the deadline to 40 characters.' });
   if (material.length > 80 || colour.length > 80 || size.length > 80) return res.status(400).json({ error: 'Please shorten the material, colour or size.' });
-  const ip = req.ip || 'unknown';
-  if (!customRateOk(ip)) return res.status(429).json({ error: 'Too many requests from this address. Please try again in an hour.' });
   const id = crypto.randomBytes(8).toString('hex');
   const rec = {
     id, createdAt: new Date().toISOString(), name, email, description, material, colour, size, quantity: qty, deadline,
@@ -479,6 +508,26 @@ app.get(['/', '/index.html'], (req, res) => sendShopHtml(req, res, 'index.html')
 app.get(['/privacy', '/privacy.html'], (req, res) => sendShopHtml(req, res, 'privacy.html'));
 app.get(['/materials', '/materials.html'], (req, res) => sendShopHtml(req, res, 'materials.html'));
 app.get(['/custom', '/custom.html'], (req, res) => sendShopHtml(req, res, 'custom.html'));
+app.get(['/delivery', '/delivery.html'], (req, res) => sendShopHtml(req, res, 'delivery.html'));
+app.get(['/returns', '/returns.html'], (req, res) => sendShopHtml(req, res, 'returns.html'));
+app.get(['/terms', '/terms.html'], (req, res) => sendShopHtml(req, res, 'terms.html'));
+app.post('/api/contact', contactLimit, async (req, res) => {
+  const b = req.body || {};
+  if (String(b.company || '').trim()) return res.json({ ok: true });
+  const name = String(b.name || '').trim();
+  const email = String(b.email || '').trim();
+  const message = String(b.message || '').trim();
+  if (name.length < 1 || name.length > 120) return res.status(400).json({ error: 'Please enter your name (120 characters or fewer).' });
+  if (email.length > 200 || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+  if (message.length < 1 || message.length > 4000) return res.status(400).json({ error: 'Please enter a message (up to 4000 characters).' });
+  const rec = { id: crypto.randomBytes(8).toString('hex'), createdAt: new Date().toISOString(), name, email, message };
+  if (!Array.isArray(db.contactMessages)) db.contactMessages = [];
+  db.contactMessages.push(rec);
+  try { await save(db); }
+  catch { db.contactMessages.pop(); return res.status(503).json({ error: "Couldn't send your message. Please try again." }); }
+  notify.contactMessage(rec).catch(e => console.error('[notify] contact failed:', e.message));
+  res.json({ ok: true });
+});
 app.use(express.static(path.join(__dirname, 'public')));
 async function start() {
   db = await store.init();

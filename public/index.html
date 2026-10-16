@@ -64,7 +64,8 @@
       </div>
       <div id="cart-lines"><p class="muted">Your basket is empty.</p></div>
       <form id="checkout" class="checkout-form">
-        <button class="btn" type="submit" id="checkout-btn">Checkout securely</button>
+        <button class="btn" type="submit" id="checkout-btn" disabled aria-disabled="true">Card payments coming soon</button>
+        <p class="order-by-message" id="order-by-message"><a class="order-link" id="order-link" href="/#contact">Order by message</a></p>
         <p class="muted small">UK delivery only. Payments by Stripe — we never see your card details.</p>
         <p id="checkout-msg" role="status"></p>
       </form>
@@ -118,20 +119,26 @@
         <h2>Contact</h2>
         <p>Questions about a print, a custom size, or an order? Get in touch.</p>
       </div>
-      <form class="contact-form" action="#" method="post" onsubmit="event.preventDefault(); alert('Contact form is a placeholder — add your email or form service when you are ready.');">
+      <form id="contact-form" class="contact-form">
+        <p id="contact-msg" role="status"></p>
+        <div class="hp" aria-hidden="true">
+          <label>Company
+            <input type="text" name="company" tabindex="-1" autocomplete="off" />
+          </label>
+        </div>
         <label>
           Name
-          <input type="text" name="name" required autocomplete="name" />
+          <input type="text" name="name" required maxlength="120" autocomplete="name" />
         </label>
         <label>
           Email
-          <input type="email" name="email" required autocomplete="email" />
+          <input type="email" name="email" required maxlength="200" autocomplete="email" />
         </label>
         <label>
           Message
-          <textarea name="message" rows="5" required></textarea>
+          <textarea name="message" rows="5" required maxlength="4000"></textarea>
         </label>
-        <button class="btn" type="submit">Send message</button>
+        <button class="btn" type="submit" id="contact-btn">Send message</button>
       </form>
     </section>
   </main>
@@ -141,6 +148,9 @@
   <footer class="site-footer">
     <span>© <span id="year"></span> Craftedimension</span>
     <a href="/privacy">Privacy</a>
+    <a href="/delivery">Delivery</a>
+    <a href="/returns">Returns</a>
+    <a href="/terms">Terms</a>
     <a href="/materials">Materials</a>
     <a href="/custom">Custom print</a>
     <span class="note" id="footer-note">Secure payments by Stripe</span>
