@@ -38,15 +38,29 @@ document.addEventListener('click', e => {
   if (a && !a.disabled) { const id = a.dataset.add, p = products.find(x => x.id == id); if ((cart[id] || 0) < p.stock) cart[id] = (cart[id] || 0) + 1; render(); }
   if (d) { cart[d.dataset.dec]--; render(); }
 });
+let payments = null;
+fetch('/api/config').then(r => r.json()).then(c => {
+  payments = c;
+  if (!c.payments) {
+    document.getElementById('pay-note').innerHTML = "<strong>Payments aren't set up yet.</strong> You can browse and fill your basket, but checkout isn't open. Please <a href=\"#contact\">contact us</a> to order.";
+    document.getElementById('footer-note').textContent = 'Online payments coming soon';
+  } else if (c.testMode) {
+    document.getElementById('footer-note').textContent = 'Stripe test mode · no real payments';
+  }
+}).catch(() => {});
 document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault();
-  const msg = document.getElementById('checkout-msg'), f = new FormData(e.target);
+  const msg = document.getElementById('checkout-msg'), btn = document.getElementById('checkout-btn');
   const items = Object.entries(cart).filter(([, q]) => q > 0).map(([id, qty]) => ({ id: +id, qty }));
   if (!items.length) { msg.className = 'err'; msg.textContent = 'Add something to your basket first.'; return; }
-  const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.get('name'), email: f.get('email'), items }) });
-  const j = await r.json();
-  if (j.products) setProducts(j.products);
-  if (r.ok) { cart = {}; render(); e.target.reset(); msg.className = 'ok'; msg.textContent = `Demo order ${j.order.id} placed (${gbp.format(j.order.total)}). No payment was taken.`; }
-  else { msg.className = 'err'; msg.textContent = j.error || 'Something went wrong.'; }
+  btn.disabled = true; msg.className = ''; msg.textContent = 'Taking you to secure checkout…';
+  try {
+    const r = await fetch('/api/checkout/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+    const j = await r.json();
+    if (j.products) setProducts(j.products);
+    if (r.ok && j.url) { location.href = j.url; return; }
+    msg.className = 'err'; msg.textContent = j.error || 'Something went wrong. Please try again.';
+  } catch { msg.className = 'err'; msg.textContent = "Couldn't reach the shop. Check your connection and try again."; }
+  btn.disabled = false;
 });
 refresh(); setInterval(refresh, 10000);

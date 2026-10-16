@@ -1,8 +1,10 @@
-# Craftedimension shop (demo)
+# Craftedimension shop
 
-Small Express shop for 3D printed products (FDM & resin) with live stock counts, a demo basket/checkout and a password-protected admin page.
+Small Express shop for 3D printed products (FDM & resin) with live stock counts, Stripe Checkout (GBP, UK delivery) and a password-protected admin page.
 
-> **Demo only:** no payment provider is connected. Orders just reserve stock.
+> Payments use Stripe Checkout. Without `STRIPE_SECRET_KEY` the shop still runs and checkout shows "payments aren't set up yet". Live keys are refused unless `STRIPE_ALLOW_LIVE=1`.
+
+See `.env.example` for all settings. Webhook endpoint: `POST /api/stripe/webhook` (event `checkout.session.completed`, plus `checkout.session.expired` to release reserved stock). Paid orders appear in `/admin` where they can be marked as sent.
 
 ## Run locally
 ```bash

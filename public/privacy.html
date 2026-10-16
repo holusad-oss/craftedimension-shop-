@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500..700,0..100,0..1;1,9..144,500..700,0..100,0..1&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="icon" href="/favicon.ico" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -27,9 +29,9 @@
       <h1>Privacy</h1>
       <p>This page describes the information this shop collects. Replace the placeholders below with the owner's details before the shop goes live.</p>
       <h2>Checkout</h2>
-      <p>Checkout collects your name and email address only, so the order can be processed. Payments are not connected yet, so no card number or other card data is taken.</p>
+      <p>Payments are handled by Stripe on its secure checkout page. Stripe collects your card details — we never see or store them. To fulfil your order we receive and keep your name, email address, delivery address, the items you bought and the amount paid. We use these only to make, post and support your order.</p>
       <h2>Sharing</h2>
-      <p>Your data is not sold.</p>
+      <p>Your data is not sold. It is shared only with Stripe (to take payment, see <a href="https://stripe.com/gb/privacy">Stripe's privacy policy</a>) and with the delivery service needed to post your order.</p>
       <h2>Who to contact</h2>
       <p>The shop is operated by [OWNER NAME]. For privacy questions, email [CONTACT EMAIL].</p>
     </article>
@@ -38,7 +40,7 @@
   <footer class="site-footer">
     <span>© <span id="year"></span> Craftedimension</span>
     <a href="/privacy">Privacy</a>
-    <span class="note">Demo shop · payments not connected</span>
+    <span class="note">Secure payments by Stripe</span>
   </footer>
   <script>
     (function () {
