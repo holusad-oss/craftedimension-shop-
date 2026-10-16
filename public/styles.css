@@ -572,3 +572,17 @@ input:focus, textarea:focus, select:focus {
     margin-top: 0.85rem;
   }
 }
+
+/* Checkout result pages. Grid gap is inside @supports; WebView 83 ignores flex gap. */
+.checkout-result { max-width: 40rem; padding-top: 2rem; }
+.result-items { padding-left: 1.2rem; }
+.checkout-form { display: grid; max-width: 28rem; }
+.checkout-form > * + * { margin-top: 0.6rem; }
+@supports (gap: 0.6rem) {
+  .checkout-form { gap: 0.6rem; }
+  .checkout-form > * + * { margin-top: 0; }
+}
+.small { font-size: 0.95rem; }
+.cart-sum { display: flex; max-width: 36rem; justify-content: space-between; padding: 0.25rem 0; color: var(--muted); }
+.postage-hint { margin: 0.4rem 0 0; font-size: 1rem; color: var(--muted); }
+.postage-hint.ok { color: #1f5130; }

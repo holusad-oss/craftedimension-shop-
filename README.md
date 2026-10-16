@@ -1,8 +1,10 @@
-# Craftedimension shop (demo)
+# Craftedimension shop
 
-Small Express shop for 3D printed products (FDM & resin) with live stock counts, a demo basket/checkout and a password-protected admin page.
+Small Express shop for 3D printed products (FDM & resin) with live stock counts, Stripe Checkout (GBP, UK delivery) and a password-protected admin page.
 
-> **Demo only:** no payment provider is connected. Orders just reserve stock.
+> Payments use Stripe Checkout. Without `STRIPE_SECRET_KEY` the shop still runs and checkout shows "payments aren't set up yet". Live keys are refused unless `STRIPE_ALLOW_LIVE=1`.
+
+See `.env.example` for all settings. Webhook endpoint: `POST /api/stripe/webhook` (event `checkout.session.completed`, plus `checkout.session.expired` to release reserved stock). Paid orders appear in `/admin` where they can be marked as sent.
 
 ## Run locally
 ```bash
@@ -35,3 +37,11 @@ The storefront has no admin link of its own. The shop page in a normal browser i
 
 ## Privacy
 `/privacy` (`public/privacy.html`) is linked from the footer. Replace the `[OWNER NAME]` and `[CONTACT EMAIL]` placeholders before launch.
+
+## Storage
+
+Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
+
+## Postage
+
+UK postage is £3.50, free when the goods subtotal is £30 or more. It is calculated on the server and sent to Stripe as a fixed-amount shipping rate.
