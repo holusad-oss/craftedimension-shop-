@@ -1,4 +1,4 @@
-# Craftedimension shop
+# Crafted.i.mentions shop
 
 Small Express shop for 3D printed products (FDM & resin) with live stock counts, Stripe Checkout (GBP, UK delivery) and a password-protected admin page.
 
@@ -29,7 +29,7 @@ If `ADMIN_PASSWORD` is not set, a random password is generated and printed to th
 - Admin (HTTP Basic, any username + ADMIN_PASSWORD): `GET /api/admin/data`, `POST/PUT/DELETE /api/admin/products[/:id]`. Product photos are uploaded on those create and edit requests (multipart, 8MB). `hidden: true` keeps a product out of the shop.
 
 ## Mobile app
-The Craftedimension Android app is recognised when the `User-Agent` contains `CraftedimensionApp`, or when the request includes `X-Craftedimension-App: 1`. For those requests:
+The Crafted.i.mentions Android app is recognised when the `User-Agent` contains `CraftedimensionApp`, or when the request includes `X-Craftedimension-App: 1`. For those requests:
 
 - `/admin` and `/api/admin/*` respond with `404` and no login challenge, even if the admin password is sent.
 - Any link to `/admin` in the shop HTML is removed, and the page is marked `data-app="1"` so the same links stay hidden if the app's user agent is present.

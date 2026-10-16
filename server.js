@@ -308,10 +308,10 @@ function handleEvent(event) {
   }
 }
 
-const page = (title, body) => `<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Craftedimension</title>
+const page = (title, body) => `<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Crafted.i.mentions</title>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<meta property="og:title" content="${escH(title)} — Craftedimension"><meta property="og:description" content="Handcrafted 3D printed products from Craftedimension."><meta property="og:image" content="https://craftedimension-shop.onrender.com/img/og-image.jpg"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:title" content="${escH(title)} — Crafted.i.mentions"><meta property="og:description" content="Handcrafted 3D printed products from Crafted.i.mentions."><meta property="og:image" content="https://craftedimension-shop.onrender.com/img/og-image.jpg"><meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/styles.css"></head><body><header class="site-header"><a class="logo" href="/"><picture><source srcset="/img/logo-wide.webp" type="image/webp"><img src="/img/logo-wide.png" alt="Crafted.i.mentions" width="1000" height="353"></picture></a><nav aria-label="Primary"><a href="/#products">Shop</a></nav></header>
 <main class="checkout-result">${body}</main></body></html>`;
 const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
@@ -348,7 +348,7 @@ function auth(req, res, next) {
   const h = req.headers.authorization || '';
   const pw = Buffer.from(h.split(' ')[1] || '', 'base64').toString().split(':').slice(1).join(':');
   if (h.startsWith('Basic ') && pw.length === ADMIN_PASSWORD.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(ADMIN_PASSWORD))) return next();
-  res.set('WWW-Authenticate', 'Basic realm="Craftedimension admin"').status(401).send('Authentication required');
+  res.set('WWW-Authenticate', 'Basic realm="Crafted.i.mentions admin"').status(401).send('Authentication required');
 }
 app.get('/admin', auth, (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/api/admin/data', auth, (req, res) => res.json(db));
@@ -536,7 +536,7 @@ async function start() {
   console.log(`Storage: ${store.kind}`);
   console.log(PAYMENTS_ON ? `Stripe payments ON (${STRIPE_KEY.startsWith('sk_live_') ? 'LIVE' : 'test'} mode)` : (LIVE_BLOCKED ? 'Stripe live key refused: set STRIPE_ALLOW_LIVE=1 to go live' : 'Stripe not configured: checkout shows "payments not set up"'));
   if (PAYMENTS_ON && !WEBHOOK_SECRET) console.warn('STRIPE_WEBHOOK_SECRET is not set: paid orders will not be recorded!');
-  console.log(`Craftedimension demo shop on http://localhost:${PORT}`);
+  console.log(`Crafted.i.mentions demo shop on http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin  password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? ' (from env)' : ' (random, generated at startup — set ADMIN_PASSWORD to fix it)'}`);
 });
 }
