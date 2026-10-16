@@ -24,6 +24,36 @@ let db = load();
 const app = express();
 app.use(express.json());
 
+function isApp(req) {
+  const ua = req.get('user-agent') || '';
+  const mark = (req.get('x-craftedimension-app') || '').trim();
+  return ua.includes('CraftedimensionApp') || mark === '1';
+}
+function notForApp(req, res, next) {
+  if (!isApp(req)) return next();
+  res.status(404).type('text').send('Not found');
+}
+function stripAdminLinks(html) {
+  return html.replace(/<a\b[^>]*href=(["'])\/admin\/?\1[^>]*>[\s\S]*?<\/a>/gi, '');
+}
+function sendShopHtml(req, res, name) {
+  fs.readFile(path.join(__dirname, 'public', name), 'utf8', (err, html) => {
+    if (err) return res.status(404).type('text').send('Not found');
+    if (isApp(req)) html = stripAdminLinks(html).replace(/<html\b/i, '<html data-app="1"');
+    res.type('html').send(html);
+  });
+}
+
+// Read-only public GETs. Admin routes stay same-origin and are not listed here.
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.path.startsWith('/api/') && !req.path.startsWith('/api/admin')) {
+    res.set('Access-Control-Allow-Origin', '*');
+  }
+  next();
+});
+app.use('/admin', notForApp);
+app.use('/api/admin', notForApp);
+
 const pub = p => ({ id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample });
 app.get('/api/products', (req, res) => {
   const t = String(req.query.type || '').toLowerCase();
@@ -91,6 +121,8 @@ app.delete('/api/admin/products/:id', auth, (req, res) => {
   db.products = db.products.filter(p => p.id !== Number(req.params.id)); save(db); res.json({ ok: true });
 });
 
+app.get(['/', '/index.html'], (req, res) => sendShopHtml(req, res, 'index.html'));
+app.get(['/privacy', '/privacy.html'], (req, res) => sendShopHtml(req, res, 'privacy.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.listen(PORT, () => {
   console.log(`Craftedimension demo shop on http://localhost:${PORT}`);

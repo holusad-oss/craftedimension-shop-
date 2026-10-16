@@ -21,6 +21,17 @@ If `ADMIN_PASSWORD` is not set, a random password is generated and printed to th
 - Storage is a JSON file: on Render's free plan the disk is ephemeral, so stock/orders reset on every redeploy/restart. Attach a persistent disk mounted at `/opt/render/project/src/data` (paid) to keep them.
 
 ## API
-- `GET /api/products[?type=fdm|resin]`
+- `GET /api/products[?type=fdm|resin]` — response includes `Access-Control-Allow-Origin: *`. Other public `GET /api/*` routes do too. Admin routes do not.
 - `POST /api/checkout` `{ name, email, items: [{ id, qty }] }` – atomic; 409 if not enough stock
 - Admin (HTTP Basic, any username + ADMIN_PASSWORD): `GET /api/admin/data`, `POST/PUT/DELETE /api/admin/products[/:id]`
+
+## Mobile app
+The Craftedimension Android app is recognised when the `User-Agent` contains `CraftedimensionApp`, or when the request includes `X-Craftedimension-App: 1`. For those requests:
+
+- `/admin` and `/api/admin/*` respond with `404` and no login challenge, even if the admin password is sent.
+- Any link to `/admin` in the shop HTML is removed, and the page is marked `data-app="1"` so the same links stay hidden if the app's user agent is present.
+
+The storefront has no admin link of its own. The shop page in a normal browser is unchanged.
+
+## Privacy
+`/privacy` (`public/privacy.html`) is linked from the footer. Replace the `[OWNER NAME]` and `[CONTACT EMAIL]` placeholders before launch.

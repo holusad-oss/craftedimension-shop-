@@ -82,9 +82,16 @@
 
   <footer class="site-footer">
     <span>© <span id="year"></span> Craftedimension</span>
+    <a href="/privacy">Privacy</a>
     <span class="note">Demo shop · payments not connected</span>
   </footer>
   <script>
+    (function () {
+      var app = document.documentElement.getAttribute('data-app') === '1' ||
+        navigator.userAgent.indexOf('CraftedimensionApp') !== -1;
+      if (!app) return;
+      document.querySelectorAll('a[href="/admin"], a[href="/admin/"]').forEach(function (a) { a.remove(); });
+    })();
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>
   <script src="shop.js"></script>
