@@ -29,4 +29,20 @@ async function orderPaid(order) {
   console.log(`[notify] emailed ${to} about order ${order.id}`);
   return { emailed: true };
 }
-module.exports = { orderPaid, formatOrder };
+function formatCustom(r) {
+  return `New custom print request ${r.id}\n\n` +
+    `Name: ${r.name}\nEmail: ${r.email}\nMaterial: ${r.material || '-'}\nColour: ${r.colour || '-'}\nApprox size: ${r.size || '-'}\nQuantity: ${r.quantity}\nDeadline: ${r.deadline || '-'}\n` +
+    (r.file ? `File: ${r.file.filename} (${r.file.size} bytes)\n` : 'File: none\n') +
+    `\n${r.description}\n`;
+}
+
+async function customRequest(r) {
+  const text = formatCustom(r);
+  const t = getTransport(), to = process.env.OWNER_EMAIL;
+  if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
+  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Custom print request from ${r.name}`.slice(0, 150), text });
+  console.log(`[notify] emailed ${to} about custom request ${r.id}`);
+  return { emailed: true };
+}
+
+module.exports = { orderPaid, formatOrder, customRequest };

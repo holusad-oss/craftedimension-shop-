@@ -39,6 +39,8 @@
     .pcard p { margin: 0 0 0.7rem; color: var(--muted); }
     .hidden-flag { display: inline-block; margin: 0 0 0.45rem; padding: 0.15rem 0.45rem; border: var(--hair); font-weight: 700; color: var(--oxblood); }
     .prow .btn { min-height: 48px; margin: 0 0.55rem 0.55rem 0; }
+    .size-fields { border: 0; margin: 0 0 0.95rem; padding: 0; }
+    .size-fields legend { font-weight: 700; padding: 0; }
     @media (max-width: 640px) {
       .prow .btn { display: flex; width: 100%; margin-right: 0; }
     }
@@ -61,10 +63,43 @@
       <label>Name <input name="name" required maxlength="120" autocomplete="off"></label>
       <label>Description <textarea name="description" rows="4" maxlength="500"></textarea></label>
       <label>Price (£) <input name="price" type="number" inputmode="decimal" min="0" step="0.01" required></label>
-      <label>How many in stock <input name="stock" type="number" inputmode="numeric" min="0" step="1" required></label>
+      <label>How many in stock
+        <input name="stock" type="number" inputmode="numeric" min="0" step="1" required>
+        <span class="hint">The shop still tracks this and blocks a sale when it runs out. Customers only see “Only N left” at 3 or fewer, and “Sold out” at 0.</span>
+      </label>
       <label>Print type
         <select name="printType"><option>FDM</option><option>Resin</option></select>
       </label>
+      <label>Material
+        <input name="material" list="materials" maxlength="80" value="PLA" autocomplete="off">
+        <datalist id="materials">
+          <option value="PLA"></option>
+          <option value="PETG"></option>
+          <option value="ABS"></option>
+          <option value="Standard resin"></option>
+          <option value="ABS-like resin"></option>
+          <option value="Tough resin"></option>
+        </datalist>
+      </label>
+      <label>Colour <input name="colour" maxlength="80" autocomplete="off"></label>
+      <fieldset class="size-fields">
+        <legend>Size (mm)</legend>
+        <label>Length <input name="size_l" type="number" inputmode="numeric" min="0" step="1"></label>
+        <label>Width <input name="size_w" type="number" inputmode="numeric" min="0" step="1"></label>
+        <label>Height <input name="size_h" type="number" inputmode="numeric" min="0" step="1"></label>
+      </fieldset>
+      <label>Detail level <input name="detail" maxlength="120" value="0.2 mm layers" autocomplete="off"></label>
+      <label>Finish
+        <select name="finish">
+          <option value="raw">Raw</option>
+          <option value="sanded">Sanded</option>
+          <option value="primed">Primed</option>
+          <option value="painted">Painted</option>
+        </select>
+      </label>
+      <label>Care notes <textarea name="care_notes" rows="3" maxlength="800"></textarea></label>
+      <label>Lead time, shortest (days) <input name="lead_min" type="number" inputmode="numeric" min="0" step="1" value="3" required></label>
+      <label>Lead time, longest (days) <input name="lead_max" type="number" inputmode="numeric" min="0" step="1" value="7" required></label>
       <label class="check"><input type="checkbox" name="sample"> This is sample data</label>
       <label>Photo
         <input name="photo" type="file" accept="image/*">
@@ -75,6 +110,9 @@
       <button class="btn btn-ghost" type="button" id="cancel-edit" hidden>Cancel</button>
     </form>
     <div id="product-list"></div>
+
+    <h2>Custom requests</h2>
+    <div id="custom-list"></div>
 
     <h2>Orders</h2>
     <label class="check" style="display:flex;align-items:center;min-height:48px;margin-bottom:.5rem"><input type="checkbox" id="showall" style="width:1.4rem;height:1.4rem;min-height:0;margin:0 .7rem 0 0" onchange="load()"> Show unpaid and cancelled too</label>
@@ -128,6 +166,16 @@
       form.price.value = p.price;
       form.stock.value = p.stock;
       form.printType.value = p.printType === 'Resin' ? 'Resin' : 'FDM';
+      form.material.value = p.material || '';
+      form.colour.value = p.colour || '';
+      form.size_l.value = p.size_mm && p.size_mm.l != null ? p.size_mm.l : '';
+      form.size_w.value = p.size_mm && p.size_mm.w != null ? p.size_mm.w : '';
+      form.size_h.value = p.size_mm && p.size_mm.h != null ? p.size_mm.h : '';
+      form.detail.value = p.detail || '';
+      form.finish.value = ['raw', 'sanded', 'primed', 'painted'].indexOf(p.finish) >= 0 ? p.finish : 'raw';
+      form.care_notes.value = p.care_notes || '';
+      form.lead_min.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[0] : 3;
+      form.lead_max.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[1] : 7;
       form.sample.checked = !!p.sample;
       form.photo.value = '';
       document.getElementById('form-title').textContent = 'Edit product';
@@ -145,6 +193,7 @@
         <h3>${esc(p.name)}</h3>
         <p>${esc(p.description || '')}</p>
         <p><span class="price">${gbp.format(p.price)}</span> · ${esc(p.printType || 'FDM')} · ${p.stock} in stock${p.sample ? ' · Sample' : ''}</p>
+        <p>${esc(p.material || '')}${p.colour ? ' · ' + esc(p.colour) : ''}${p.detail ? ' · ' + esc(p.detail) : ''}</p>
         <div class="prow">
           <button class="btn" type="button" data-edit>Edit</button>
           <button class="btn btn-ghost" type="button" data-hide>${p.hidden ? 'Show in shop' : 'Hide from shop'}</button>
@@ -156,6 +205,15 @@
       const d = await api('/api/admin/data');
       products = d.products;
       renderProducts();
+      const customs = (d.customRequests || []).slice().reverse();
+      const sizeOf = r => r.size ? ' · ' + esc(r.size) : '';
+      document.getElementById('custom-list').innerHTML = customs.map(r => `<article class="pcard">
+        <h3>${esc(r.name)}</h3>
+        <p>${esc(r.email)} · ${esc(new Date(r.createdAt).toLocaleString('en-GB'))}</p>
+        <p>${esc(r.material || 'Material not set')}${r.colour ? ' · ' + esc(r.colour) : ''}${sizeOf(r)} · qty ${esc(r.quantity)}${r.deadline ? ' · ' + esc(r.deadline) : ''}</p>
+        <p>${esc(r.description)}</p>
+        ${r.file ? `<p><a href="/api/admin/custom/${esc(r.id)}/file">${esc(r.file.filename)}</a></p>` : '<p>No file attached</p>'}
+      </article>`).join('') || '<p class="muted">No custom requests yet.</p>';
       const addr = o => { const s = o.shipping; if (!s) return '—'; const a = s.address || {}; return [s.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).map(esc).join('<br>'); };
       const badge = o => { const s = o.status || 'demo'; return `<span class="status status-${esc(s)}">${esc(s)}</span>` + (o.sentAt ? `<br><small>${new Date(o.sentAt).toLocaleDateString('en-GB')}</small>` : '') + (o.note ? `<br><small>${esc(o.note)}</small>` : ''); };
       const show = document.getElementById('showall');

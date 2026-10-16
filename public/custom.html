@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Custom print — Craftedimension</title>
+  <meta name="description" content="Request a custom 3D print from Craftedimension." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a>
+    <nav aria-label="Primary">
+      <a href="/#products">Shop</a>
+      <a href="/#about">About</a>
+      <a href="/#contact">Contact</a>
+      <a href="/#cart">Basket</a>
+    </nav>
+  </header>
+
+  <main>
+    <article class="sheet">
+      <h1>Request a custom print</h1>
+      <p>Tell us what you would like made. A model file helps; a photo or a description is enough to start the conversation. This is a request, not a payment.</p>
+      <div class="demo-note">
+        <p>Typical lead time is 3–7 days once the print is agreed. The largest piece we can print in one go is <strong>[MAX BUILD SIZE]</strong> (for example 220×220×250 mm). Anything bigger may need to be split.</p>
+        <p>See the <a href="/materials">materials guide</a> for what PLA, PETG and resin are good for. Nothing we print is food-safe.</p>
+      </div>
+      <!-- Draft for the owner to confirm. -->
+      <div class="policy-draft"><strong>Draft for the owner to confirm.</strong> Custom and made-to-order items are exempt from the 14-day cancellation right unless faulty; standard items can be returned within 14 days.</div>
+
+      <form id="custom-form" class="contact-form custom-form">
+        <p id="custom-msg" role="status"></p>
+        <div class="hp" aria-hidden="true">
+          <label>Company
+            <input type="text" name="company" tabindex="-1" autocomplete="off">
+          </label>
+        </div>
+        <label>Name
+          <input name="name" required maxlength="120" autocomplete="name">
+        </label>
+        <label>Email
+          <input name="email" type="email" required maxlength="200" autocomplete="email">
+        </label>
+        <label>What would you like printed?
+          <textarea name="description" required maxlength="4000" rows="6"></textarea>
+        </label>
+        <label>File (optional)
+          <input name="file" type="file" accept=".stl,.3mf,.obj,image/*">
+          <span class="hint">STL, 3MF, OBJ or an image. 20MB maximum.</span>
+        </label>
+        <label>Material
+          <select name="material">
+            <option value="">Not sure</option>
+            <option>PLA</option>
+            <option>PETG</option>
+            <option>Standard resin</option>
+            <option>ABS-like resin</option>
+            <option>Tough resin</option>
+          </select>
+        </label>
+        <label>Colour
+          <input name="colour" maxlength="80" autocomplete="off">
+        </label>
+        <label>Approximate size
+          <input name="size" maxlength="80" placeholder="e.g. 80 × 80 × 40 mm" autocomplete="off">
+        </label>
+        <label>Quantity
+          <input name="quantity" type="number" inputmode="numeric" min="1" max="100" step="1" value="1" required>
+        </label>
+        <label>Deadline (optional)
+          <input name="deadline" maxlength="40" placeholder="e.g. before 20 June" autocomplete="off">
+        </label>
+        <button class="btn" type="submit" id="custom-btn">Send request</button>
+      </form>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Craftedimension</span>
+    <a href="/privacy">Privacy</a>
+    <a href="/materials">Materials</a>
+    <a href="/custom">Custom print</a>
+    <span class="note">Secure payments by Stripe</span>
+  </footer>
+  <script>
+    (function () {
+      var app = document.documentElement.getAttribute('data-app') === '1' ||
+        navigator.userAgent.indexOf('CraftedimensionApp') !== -1;
+      if (!app) return;
+      document.querySelectorAll('a[href="/admin"], a[href="/admin/"]').forEach(function (a) { a.remove(); });
+    })();
+    document.getElementById('year').textContent = new Date().getFullYear();
+    var form = document.getElementById('custom-form');
+    var msg = document.getElementById('custom-msg');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('custom-btn');
+      var fd = new FormData(form);
+      var file = fd.get('file');
+      if (!(file instanceof File) || !file.size) fd.delete('file');
+      else if (file.size > 20 * 1024 * 1024) {
+        msg.className = 'err';
+        msg.textContent = 'That file is larger than 20MB. Please send a smaller one.';
+        return;
+      }
+      btn.disabled = true;
+      msg.className = '';
+      msg.textContent = 'Sending…';
+      try {
+        var r = await fetch('/api/custom', { method: 'POST', body: fd });
+        var j = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          msg.className = 'err';
+          msg.textContent = j.error || 'Something went wrong. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        msg.className = 'ok';
+        msg.textContent = 'Thanks. We have your request and will reply by email.';
+        form.reset();
+      } catch (err) {
+        msg.className = 'err';
+        msg.textContent = "Couldn't reach the shop. Check your connection and try again.";
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

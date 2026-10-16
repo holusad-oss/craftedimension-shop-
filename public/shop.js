@@ -4,15 +4,51 @@ const CUBE = '<svg class="cube-icon" viewBox="0 0 64 64" aria-hidden="true" focu
 let products = [], cart = {}, filter = 'All';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
+function leadText(p) {
+  const lead = Array.isArray(p.lead_time_days) && p.lead_time_days.length >= 2 ? p.lead_time_days : [3, 7];
+  const a = Number(lead[0]), b = Number(lead[1]);
+  const days = a === b ? a + ' days' : a + '\u2013' + b + ' days';
+  return 'Made to order \u00b7 ships in ' + days;
+}
+function sizeText(p) {
+  const s = p.size_mm || {};
+  if (s.l == null && s.w == null && s.h == null) return '';
+  const part = n => (n == null || n === '' ? '\u2014' : n);
+  return part(s.l) + '\u00d7' + part(s.w) + '\u00d7' + part(s.h) + ' mm';
+}
+function finishLabel(f) {
+  return { raw: 'Raw', sanded: 'Sanded', primed: 'Primed', painted: 'Painted' }[f] || f || '';
+}
+function stockText(p) {
+  if (p.stock === 0) return '<span class="stock out">Sold out</span>';
+  if (p.stock <= 3) return '<span class="stock low">Only ' + p.stock + ' left</span>';
+  return '';
+}
 function render() {
   document.getElementById('grid').innerHTML = products.filter(p => filter === 'All' || p.printType === filter).map(p => {
     const inCart = cart[p.id] || 0, avail = p.stock - inCart;
-    const st = p.stock === 0 ? '<span class="stock out">Sold out</span>' : `<span class="stock${p.stock <= 3 ? ' low' : ''}">${p.stock} left</span>`;
+    const st = stockText(p);
     const media = p.image ? `<img src="${esc(p.thumb || p.image)}" alt="${esc(p.name)}">` : CUBE;
+    const meta = [p.material, p.colour, sizeText(p)].filter(Boolean).map(esc).join(' \u00b7 ');
+    const specs = `<details class="specs"><summary>Print details</summary>
+      <dl class="spec">
+        <dt>Material</dt><dd>${esc(p.material || '\u2014')}</dd>
+        <dt>Colour</dt><dd>${esc(p.colour || '\u2014')}</dd>
+        <dt>Size</dt><dd>${esc(sizeText(p) || '\u2014')}</dd>
+        <dt>Detail</dt><dd>${esc(p.detail || '\u2014')}</dd>
+        <dt>Finish</dt><dd>${esc(finishLabel(p.finish) || '\u2014')}</dd>
+      </dl>
+      ${p.care_notes ? `<p class="care">${esc(p.care_notes)}</p>` : ''}
+      <p class="spec-links"><a href="/materials">Materials guide</a></p>
+      <div class="policy-draft"><strong>Draft for the owner to confirm.</strong> Custom and made-to-order items are exempt from the 14-day cancellation right unless faulty; standard items can be returned within 14 days.</div>
+    </details>`;
     return `<article class="card">
       <div class="card-media">${media}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
       <h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
-      <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span><br>${st}</div>
+      ${meta ? `<p class="meta-line">${meta}</p>` : ''}
+      <p class="lead-line">${esc(leadText(p))}</p>
+      ${specs}
+      <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span>${st ? '<br>' + st : ''}</div>
       <button class="btn small" data-add="${p.id}" ${avail <= 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : avail <= 0 ? 'All in basket' : 'Add to basket'}</button></div>
     </article>`;
   }).join('') || '<p class="muted">No products in this category yet.</p>';

@@ -61,6 +61,40 @@ function photoError() {
   return "Couldn't use that photo. Please choose a JPEG, PNG, WebP or HEIC image.";
 }
 
+const MAX_CUSTOM = 20 * 1024 * 1024;
+const customUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_CUSTOM, files: 1 },
+  fileFilter(req, file, cb) {
+    const type = String(file.mimetype || '').toLowerCase();
+    const name = String(file.originalname || '').toLowerCase();
+    if (/\.(stl|3mf|obj)$/.test(name) || type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/.test(name)) return cb(null, true);
+    cb(new Error('Please upload an STL, 3MF, OBJ or an image.'));
+  },
+});
+function withCustomFile(req, res, next) {
+  customUpload.single('file')(req, res, err => {
+    if (!err) return next();
+    const tooBig = err.code === 'LIMIT_FILE_SIZE';
+    res.status(tooBig ? 413 : 400).json({
+      error: tooBig ? 'That file is larger than 20MB. Please send a smaller one.' : (err.message || 'Could not read that file.'),
+    });
+  });
+}
+// In-memory, per process. Five accepted custom requests per IP per hour.
+const customHits = new Map();
+function customRateOk(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  let prev = customHits.get(ip) || [];
+  prev = prev.filter(t => now - t < windowMs);
+  if (prev.length >= 5) { customHits.set(ip, prev); return false; }
+  prev.push(now);
+  customHits.set(ip, prev);
+  if (customHits.size > 5000) customHits.clear();
+  return true;
+}
+
 const app = express();
 app.set('trust proxy', 1); // Render terminates HTTPS at its proxy
 // Stripe webhook needs the raw body for signature checks, so it is registered before express.json().
@@ -106,7 +140,12 @@ app.use('/admin', notForApp);
 app.use('/api/admin', notForApp);
 
 const pub = p => {
-  const o = { id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample };
+  const o = {
+    id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample,
+    material: p.material || '', colour: p.colour || '', size_mm: p.size_mm || { l: null, w: null, h: null },
+    detail: p.detail || '', finish: p.finish || 'raw', care_notes: p.care_notes || '',
+    lead_time_days: Array.isArray(p.lead_time_days) ? p.lead_time_days : [3, 7],
+  };
   if (p.photo) {
     const v = p.photoRev || 1;
     o.image = `/img/p/${p.id}.webp?v=${v}`;
@@ -289,6 +328,12 @@ app.post('/api/admin/orders/:id/sent', auth, (req, res) => {
   o.status = undo ? 'paid' : 'sent'; o.sentAt = undo ? undefined : new Date().toISOString(); save(db); res.json(o);
 });
 function truthy(v) { return v === true || v === 'true' || v === '1' || v === 'on'; }
+function dim(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 10) / 10;
+}
 function clean(b, base = {}, full) {
   const p = { ...base };
   if (b.name !== undefined) p.name = String(b.name).trim().slice(0, 120);
@@ -299,6 +344,32 @@ function clean(b, base = {}, full) {
   if (b.printType !== undefined) p.printType = String(b.printType).toLowerCase() === 'resin' ? 'Resin' : 'FDM';
   if (full || b.sample !== undefined) p.sample = truthy(b.sample);
   if (b.hidden !== undefined) p.hidden = truthy(b.hidden);
+  if (b.material !== undefined) p.material = String(b.material).trim().slice(0, 80);
+  if (b.colour !== undefined) p.colour = String(b.colour).trim().slice(0, 80);
+  if (b.detail !== undefined) p.detail = String(b.detail).trim().slice(0, 120);
+  if (b.care_notes !== undefined) p.care_notes = String(b.care_notes).slice(0, 800);
+  if (b.finish !== undefined) {
+    const f = String(b.finish).toLowerCase();
+    p.finish = ['raw', 'sanded', 'primed', 'painted'].includes(f) ? f : 'raw';
+  }
+  if (b.size_l !== undefined || b.size_w !== undefined || b.size_h !== undefined || (b.size_mm && typeof b.size_mm === 'object')) {
+    const src = b.size_mm && typeof b.size_mm === 'object' ? b.size_mm : {};
+    const prev = p.size_mm && typeof p.size_mm === 'object' ? p.size_mm : {};
+    p.size_mm = {
+      l: b.size_l !== undefined ? dim(b.size_l) : (src.l !== undefined ? dim(src.l) : (prev.l ?? null)),
+      w: b.size_w !== undefined ? dim(b.size_w) : (src.w !== undefined ? dim(src.w) : (prev.w ?? null)),
+      h: b.size_h !== undefined ? dim(b.size_h) : (src.h !== undefined ? dim(src.h) : (prev.h ?? null)),
+    };
+  }
+  if (b.lead_min !== undefined || b.lead_max !== undefined || b.lead_time_days !== undefined) {
+    const prev = Array.isArray(p.lead_time_days) ? p.lead_time_days : [3, 7];
+    const fromBody = Array.isArray(b.lead_time_days) ? b.lead_time_days : null;
+    let min = Math.floor(Number(b.lead_min !== undefined ? b.lead_min : (fromBody ? fromBody[0] : prev[0])));
+    let max = Math.floor(Number(b.lead_max !== undefined ? b.lead_max : (fromBody ? fromBody[1] : prev[1])));
+    if (!Number.isFinite(min) || min < 0) min = 3;
+    if (!Number.isFinite(max) || max < 0) max = 7;
+    p.lead_time_days = [Math.min(min, max), Math.max(min, max)];
+  }
   delete p.photoFile;
   return p;
 }
@@ -316,7 +387,10 @@ async function attachPhoto(p, file) {
 app.post('/api/admin/products', auth, withPhoto, async (req, res) => {
   const body = req.body || {};
   if (!String(body.name || '').trim()) return res.status(400).json({ error: 'Please enter a name.' });
-  const p = clean(body, { id: db.nextId++, price: 0, stock: 0, gradient: 0, description: '', sample: false, printType: 'FDM', hidden: false }, true);
+  const p = clean(body, {
+    id: db.nextId++, price: 0, stock: 0, gradient: 0, description: '', sample: false, printType: 'FDM', hidden: false,
+    material: 'PLA', colour: '', size_mm: { l: null, w: null, h: null }, detail: '0.2 mm layers', finish: 'raw', care_notes: '', lead_time_days: [3, 7],
+  }, true);
   const photoErr = await attachPhoto(p, req.file);
   if (photoErr) { db.nextId--; return res.status(photoErr.indexOf('store') >= 0 ? 503 : 400).json({ error: photoErr }); }
   db.products.push(p);
@@ -337,6 +411,60 @@ app.put('/api/admin/products/:id', auth, withPhoto, async (req, res) => {
   catch { return res.status(503).json({ error: "Couldn't save those changes. Please try again." }); }
   res.json(next);
 });
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+app.post('/api/custom', withCustomFile, async (req, res) => {
+  const b = req.body || {};
+  // Honeypot: pretend it worked, and do not count it toward the rate limit.
+  if (String(b.company || '').trim()) return res.json({ ok: true });
+  const name = String(b.name || '').trim();
+  const email = String(b.email || '').trim();
+  const description = String(b.description || '').trim();
+  const material = String(b.material || '').trim();
+  const colour = String(b.colour || '').trim();
+  const size = String(b.size || '').trim();
+  const deadline = String(b.deadline || '').trim();
+  const qty = Math.floor(Number(b.quantity));
+  if (name.length < 1 || name.length > 120) return res.status(400).json({ error: 'Please enter your name (120 characters or fewer).' });
+  if (email.length > 200 || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+  if (description.length < 1 || description.length > 4000) return res.status(400).json({ error: 'Please describe what you would like printed (up to 4000 characters).' });
+  if (!(qty >= 1 && qty <= 100)) return res.status(400).json({ error: 'Quantity must be between 1 and 100.' });
+  if (deadline.length > 40) return res.status(400).json({ error: 'Please keep the deadline to 40 characters.' });
+  if (material.length > 80 || colour.length > 80 || size.length > 80) return res.status(400).json({ error: 'Please shorten the material, colour or size.' });
+  const ip = req.ip || 'unknown';
+  if (!customRateOk(ip)) return res.status(429).json({ error: 'Too many requests from this address. Please try again in an hour.' });
+  const id = crypto.randomBytes(8).toString('hex');
+  const rec = {
+    id, createdAt: new Date().toISOString(), name, email, description, material, colour, size, quantity: qty, deadline,
+    file: null,
+  };
+  if (req.file && req.file.size > 0) {
+    const filename = path.basename(String(req.file.originalname || 'upload')).replace(/[\r\n"]/g, '').slice(0, 180) || 'upload';
+    const mime = String(req.file.mimetype || 'application/octet-stream').slice(0, 120);
+    try { await store.saveCustomFile(id, filename, mime, req.file.buffer); }
+    catch (e) { console.error('[custom] file save', e.message); return res.status(503).json({ error: "Couldn't store that file. Please try again." }); }
+    rec.file = { filename, mime, size: req.file.size };
+  }
+  if (!Array.isArray(db.customRequests)) db.customRequests = [];
+  db.customRequests.push(rec);
+  try { await save(db); }
+  catch { db.customRequests.pop(); return res.status(503).json({ error: "Couldn't save your request. Please try again." }); }
+  notify.customRequest(rec).catch(e => console.error('[notify] custom failed:', e.message));
+  res.json({ ok: true, id });
+});
+app.get('/api/admin/custom/:id/file', auth, async (req, res) => {
+  let file;
+  try { file = await store.readCustomFile(req.params.id); }
+  catch (e) { console.error('[custom] read', e.message); return res.status(500).type('text').send('Not found'); }
+  if (!file) return res.status(404).type('text').send('Not found');
+  const name = String(file.filename || 'upload').replace(/[\r\n"]/g, '') || 'upload';
+  res.set('Content-Type', file.mime || 'application/octet-stream');
+  res.set('Content-Disposition', `attachment; filename="${name}"`);
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Cache-Control', 'private, no-store');
+  if (!Buffer.isBuffer(file.buf)) file.buf = Buffer.from(file.buf);
+  res.send(file.buf);
+});
+
 app.delete('/api/admin/products/:id', auth, async (req, res) => {
   const id = Number(req.params.id);
   if (!db.products.some(p => p.id === id)) return res.status(404).json({ error: 'Not found' });
@@ -349,6 +477,8 @@ app.delete('/api/admin/products/:id', auth, async (req, res) => {
 
 app.get(['/', '/index.html'], (req, res) => sendShopHtml(req, res, 'index.html'));
 app.get(['/privacy', '/privacy.html'], (req, res) => sendShopHtml(req, res, 'privacy.html'));
+app.get(['/materials', '/materials.html'], (req, res) => sendShopHtml(req, res, 'materials.html'));
+app.get(['/custom', '/custom.html'], (req, res) => sendShopHtml(req, res, 'custom.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 async function start() {
   db = await store.init();

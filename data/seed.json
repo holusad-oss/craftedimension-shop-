@@ -5,7 +5,14 @@
     "price": 14,
     "stock": 10,
     "gradient": 0,
-    "printType": "FDM"
+    "printType": "FDM",
+    "material": "PLA",
+    "colour": "Terracotta",
+    "size_mm": { "l": 100, "w": 100, "h": 90 },
+    "detail": "0.2 mm layers",
+    "finish": "raw",
+    "care_notes": "Not food-safe — do not use it for food or drink. PLA softens in heat or a hot car. Hand wash only.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Cable Tidy Set (Sample)",
@@ -13,7 +20,14 @@
     "price": 6.5,
     "stock": 20,
     "gradient": 1,
-    "printType": "FDM"
+    "printType": "FDM",
+    "material": "PETG",
+    "colour": "Black",
+    "size_mm": { "l": 40, "w": 20, "h": 15 },
+    "detail": "0.2 mm layers",
+    "finish": "raw",
+    "care_notes": "PETG takes everyday knocks better than PLA. Still not food-safe. Keep clips off a radiator.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Lithophane Lamp (Sample)",
@@ -21,7 +35,14 @@
     "price": 32,
     "stock": 4,
     "gradient": 2,
-    "printType": "FDM"
+    "printType": "FDM",
+    "material": "PLA",
+    "colour": "White",
+    "size_mm": { "l": 120, "w": 90, "h": 140 },
+    "detail": "0.2 mm layers",
+    "finish": "raw",
+    "care_notes": "White PLA, meant to be lit from behind. Not food-safe. PLA softens in heat or a hot car — keep it away from a hot bulb and from a sunny windowsill.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Articulated Dragon (Sample)",
@@ -29,7 +50,14 @@
     "price": 18,
     "stock": 8,
     "gradient": 0,
-    "printType": "FDM"
+    "printType": "FDM",
+    "material": "PLA",
+    "colour": "Forest green",
+    "size_mm": { "l": 300, "w": 40, "h": 50 },
+    "detail": "0.2 mm layers",
+    "finish": "raw",
+    "care_notes": "Flex the joints gently the first time. Not a toy for young children. PLA softens in heat or a hot car.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Headphone Stand (Sample)",
@@ -37,7 +65,14 @@
     "price": 22,
     "stock": 6,
     "gradient": 1,
-    "printType": "FDM"
+    "printType": "FDM",
+    "material": "PLA",
+    "colour": "Matte black",
+    "size_mm": { "l": 110, "w": 100, "h": 240 },
+    "detail": "0.2 mm layers",
+    "finish": "sanded",
+    "care_notes": "Sanded matte PLA. Not food-safe. PLA softens in heat or a hot car, so keep it off a sunny windowsill.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Miniature Knight Figure (Sample)",
@@ -45,7 +80,14 @@
     "price": 9,
     "stock": 12,
     "gradient": 2,
-    "printType": "Resin"
+    "printType": "Resin",
+    "material": "ABS-like resin",
+    "colour": "Grey",
+    "size_mm": { "l": 32, "w": 25, "h": 32 },
+    "detail": "0.05 mm resin",
+    "finish": "raw",
+    "care_notes": "Unpainted ABS-like resin. Resin is brittle, not for outdoor use. Not food-safe. Don't drop it, and keep it out of long sun.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Leaf Jewellery Dish (Sample)",
@@ -53,7 +95,14 @@
     "price": 16,
     "stock": 5,
     "gradient": 0,
-    "printType": "Resin"
+    "printType": "Resin",
+    "material": "Standard resin",
+    "colour": "Sage",
+    "size_mm": { "l": 90, "w": 90, "h": 25 },
+    "detail": "0.05 mm resin",
+    "finish": "sanded",
+    "care_notes": "Sanded standard resin for jewellery, not food. Not food-safe. Resin is brittle, not for outdoor use.",
+    "lead_time_days": [3, 7]
   },
   {
     "name": "Mini Bust Ornament (Sample)",
@@ -61,6 +110,13 @@
     "price": 12.5,
     "stock": 3,
     "gradient": 1,
-    "printType": "Resin"
+    "printType": "Resin",
+    "material": "Standard resin",
+    "colour": "Stone grey",
+    "size_mm": { "l": 40, "w": 35, "h": 60 },
+    "detail": "0.05 mm resin",
+    "finish": "painted",
+    "care_notes": "Painted standard resin. Dust it; don't soak it. Not food-safe. Resin is brittle, not for outdoor use.",
+    "lead_time_days": [3, 7]
   }
 ]

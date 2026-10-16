@@ -14,8 +14,8 @@ ADMIN_PASSWORD=choose-a-password npm start   # http://localhost:3000, admin at /
 If `ADMIN_PASSWORD` is not set, a random password is generated and printed to the console at startup.
 
 ## Data
-- `data/seed.json` – sample products (all marked as samples).
-- `data/db.json` – live products/stock/orders; created from the seed on first start (git-ignored). Delete it to reset.
+- `data/seed.json` – sample products (all marked as samples), including material, colour, size, detail, finish, care notes and lead time.
+- `data/db.json` – live products, stock, orders and custom requests; created from the seed on first start (git-ignored). Delete it to reset. On startup, missing product fields are filled in (sample names get the sample specs; anything else gets PLA or Standard resin, raw finish, and a 3–7 day lead time) without overwriting values already saved.
 
 ## Deploy on Render
 - Runtime: Node · Build: `npm install` · Start: `node server.js`
@@ -43,6 +43,12 @@ The storefront has no admin link of its own. The shop page in a normal browser i
 Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`, `product_images`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
 
 Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). With `DATABASE_URL` the bytes live in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The shop serves them at `/img/p/<id>.webp`.
+
+Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the request is written to the server log.
+
+## Materials, lead time and custom prints
+
+`/materials` is a draft comparison of FDM, resin, PLA and PETG for a specialist to revise. Product cards show material, colour and size, plus “Made to order · ships in X–Y days”. Stock still decrements on sale and is edited in `/admin`; the shop only shows “Only N left” at 3 or fewer and “Sold out” at 0. `/custom` is the custom-order form (the hero button points here). The returns sentence on product details and `/custom` is marked as a draft for the owner to confirm.
 
 ## Postage
 
