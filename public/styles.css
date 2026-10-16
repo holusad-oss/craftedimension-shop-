@@ -639,6 +639,9 @@ input:focus, textarea:focus, select:focus {
 .compare p + p, .compare ul { margin-top: 0.45rem; }
 .compare ul { margin-bottom: 0; padding-left: 1.15rem; }
 .sheet > p + p { margin-top: 0.75rem; }
+.sheet p.not-food { margin-top: 0.9rem; }
+.care-list { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+.care-list li + li { margin-top: 0.35rem; }
 .custom-form { position: relative; margin-top: 1.2rem; }
 .custom-form input, .custom-form select, .custom-form textarea { min-height: 48px; font-size: 1.1rem; }
 .custom-form textarea { min-height: 7rem; }

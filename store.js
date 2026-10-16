@@ -43,22 +43,38 @@ const SAMPLE_SPECS = {
     lead_time_days: [3, 7],
   },
   'Miniature Knight Figure (Sample)': {
-    material: 'ABS-like resin', colour: 'Grey', size_mm: { l: 32, w: 25, h: 32 },
+    material: 'Standard resin', colour: 'Grey', size_mm: { l: 32, w: 25, h: 32 },
     detail: '0.05 mm resin', finish: 'raw',
-    care_notes: 'Unpainted ABS-like resin. Resin is brittle, not for outdoor use. Not food-safe. Don\'t drop it, and keep it out of long sun.',
+    care_notes: 'Unpainted standard resin, grey. Display it indoors and handle thin parts gently. Not food-safe.',
     lead_time_days: [3, 7],
   },
   'Leaf Jewellery Dish (Sample)': {
-    material: 'Standard resin', colour: 'Sage', size_mm: { l: 90, w: 90, h: 25 },
+    material: 'Tough (ABS-like) resin', colour: 'Sage', size_mm: { l: 90, w: 90, h: 25 },
     detail: '0.05 mm resin', finish: 'sanded',
-    care_notes: 'Sanded standard resin for jewellery, not food. Not food-safe. Resin is brittle, not for outdoor use.',
+    care_notes: 'Tough (ABS-like) resin, sanded. For jewellery, not food. Handle thin edges gently.',
     lead_time_days: [3, 7],
   },
   'Mini Bust Ornament (Sample)': {
-    material: 'Standard resin', colour: 'Stone grey', size_mm: { l: 40, w: 35, h: 60 },
+    material: 'Standard resin', colour: 'Stone-effect', size_mm: { l: 40, w: 35, h: 60 },
     detail: '0.05 mm resin', finish: 'painted',
-    care_notes: 'Painted standard resin. Dust it; don\'t soak it. Not food-safe. Resin is brittle, not for outdoor use.',
+    care_notes: 'Standard resin with a stone-effect finish. Display it indoors. Dust with a dry or slightly damp cloth. Not food-safe.',
     lead_time_days: [3, 7],
+  },
+};
+
+// Earlier sample defaults, replaced only when a row still has them. An edited value is left alone.
+const PREVIOUS_SAMPLE = {
+  'Miniature Knight Figure (Sample)': {
+    material: 'ABS-like resin',
+    care_notes: 'Unpainted ABS-like resin. Resin is brittle, not for outdoor use. Not food-safe. Don\'t drop it, and keep it out of long sun.',
+  },
+  'Leaf Jewellery Dish (Sample)': {
+    material: 'Standard resin',
+    care_notes: 'Sanded standard resin for jewellery, not food. Not food-safe. Resin is brittle, not for outdoor use.',
+  },
+  'Mini Bust Ornament (Sample)': {
+    colour: 'Stone grey',
+    care_notes: 'Painted standard resin. Dust it; don\'t soak it. Not food-safe. Resin is brittle, not for outdoor use.',
   },
 };
 
@@ -123,6 +139,13 @@ function migrateProduct(p) {
     if (!Array.isArray(p.lead_time_days) || p.lead_time_days.length !== 2 || p.lead_time_days[0] !== lead[0] || p.lead_time_days[1] !== lead[1]) {
       p.lead_time_days = lead; changed = true;
     }
+  }
+  const prev = PREVIOUS_SAMPLE[p.name];
+  const next = SAMPLE_SPECS[p.name];
+  if (prev && next) {
+    if (prev.material && p.material === prev.material) { p.material = next.material; changed = true; }
+    if (prev.colour && p.colour === prev.colour) { p.colour = next.colour; changed = true; }
+    if (prev.care_notes && p.care_notes === prev.care_notes) { p.care_notes = next.care_notes; changed = true; }
   }
   return changed;
 }

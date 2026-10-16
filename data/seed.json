@@ -81,12 +81,12 @@
     "stock": 12,
     "gradient": 2,
     "printType": "Resin",
-    "material": "ABS-like resin",
+    "material": "Standard resin",
     "colour": "Grey",
     "size_mm": { "l": 32, "w": 25, "h": 32 },
     "detail": "0.05 mm resin",
     "finish": "raw",
-    "care_notes": "Unpainted ABS-like resin. Resin is brittle, not for outdoor use. Not food-safe. Don't drop it, and keep it out of long sun.",
+    "care_notes": "Unpainted standard resin, grey. Display it indoors and handle thin parts gently. Not food-safe.",
     "lead_time_days": [3, 7]
   },
   {
@@ -96,12 +96,12 @@
     "stock": 5,
     "gradient": 0,
     "printType": "Resin",
-    "material": "Standard resin",
+    "material": "Tough (ABS-like) resin",
     "colour": "Sage",
     "size_mm": { "l": 90, "w": 90, "h": 25 },
     "detail": "0.05 mm resin",
     "finish": "sanded",
-    "care_notes": "Sanded standard resin for jewellery, not food. Not food-safe. Resin is brittle, not for outdoor use.",
+    "care_notes": "Tough (ABS-like) resin, sanded. For jewellery, not food. Handle thin edges gently.",
     "lead_time_days": [3, 7]
   },
   {
@@ -112,11 +112,11 @@
     "gradient": 1,
     "printType": "Resin",
     "material": "Standard resin",
-    "colour": "Stone grey",
+    "colour": "Stone-effect",
     "size_mm": { "l": 40, "w": 35, "h": 60 },
     "detail": "0.05 mm resin",
     "finish": "painted",
-    "care_notes": "Painted standard resin. Dust it; don't soak it. Not food-safe. Resin is brittle, not for outdoor use.",
+    "care_notes": "Standard resin with a stone-effect finish. Display it indoors. Dust with a dry or slightly damp cloth. Not food-safe.",
     "lead_time_days": [3, 7]
   }
 ]

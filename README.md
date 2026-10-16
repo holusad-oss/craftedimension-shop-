@@ -48,7 +48,7 @@ Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom
 
 ## Materials, lead time and custom prints
 
-`/materials` is a draft comparison of FDM, resin, PLA and PETG for a specialist to revise. Product cards show material, colour and size, plus “Made to order · ships in X–Y days”. Stock still decrements on sale and is edited in `/admin`; the shop only shows “Only N left” at 3 or fewer and “Sold out” at 0. `/custom` is the custom-order form (the hero button points here). The returns sentence on product details and `/custom` is marked as a draft for the owner to confirm.
+`/materials` compares FDM and resin, then PLA, PETG, standard resin and tough (ABS-like) resin. Product cards show material, colour and size, plus “Made to order · ships in X–Y days”. Stock still decrements on sale and is edited in `/admin`; the shop only shows “Only N left” at 3 or fewer and “Sold out” at 0. `/custom` is the custom-order form (the hero button points here). The returns sentence on product details and `/custom` is marked as a draft for the owner to confirm.
 
 ## Postage
 
