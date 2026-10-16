@@ -1,6 +1,6 @@
 document.getElementById('year').textContent = new Date().getFullYear();
 const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
-const G = ['', 'alt', 'alt2'];
+const CUBE = '<svg class="cube-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path fill="#a94f20" d="M10 18 32 30 32 54 10 42Z"/><path fill="#c4622d" d="M54 18 32 30 32 54 54 42Z"/><path fill="#c4622d" d="M32 6 46.7 14 17.3 14Z"/><path fill="#e6a94a" d="M17.3 14 46.7 14 54 18 46.7 22 17.3 22 10 18Z"/><path fill="#c4622d" d="M17.3 22 46.7 22 32 30Z"/></svg>';
 let products = [], cart = {}, filter = 'All';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
@@ -9,9 +9,7 @@ function render() {
     const inCart = cart[p.id] || 0, avail = p.stock - inCart;
     const st = p.stock === 0 ? '<span class="stock out">Sold out</span>' : `<span class="stock${p.stock <= 3 ? ' low' : ''}">${p.stock} left</span>`;
     return `<article class="card">
-      <div class="card-media ${G[p.gradient] || ''}" aria-hidden="true"></div>
-      ${p.sample ? '<span class="badge">Sample</span>' : ''}
-      <span class="type type-${p.printType.toLowerCase()}">${p.printType}</span>
+      <div class="card-media">${CUBE}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
       <h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
       <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span><br>${st}</div>
       <button class="btn small" data-add="${p.id}" ${avail <= 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : avail <= 0 ? 'All in basket' : 'Add to basket'}</button></div>
@@ -22,8 +20,8 @@ function render() {
   document.getElementById('cart-lines').innerHTML = ids.length ? ids.map(id => {
     const p = products.find(x => x.id == id); if (!p) return '';
     total += p.price * cart[id];
-    return `<div class="cart-line"><span>${esc(p.name)}</span><span><button data-dec="${id}" aria-label="Remove one">−</button> ${cart[id]} <button data-add="${id}" aria-label="Add one" ${cart[id] >= p.stock ? 'disabled' : ''}>+</button></span><span>${gbp.format(p.price * cart[id])}</span></div>`;
-  }).join('') + `<div class="cart-total">Total ${gbp.format(total)}</div>` : '<p class="muted">Your basket is empty.</p>';
+    return `<div class="cart-line"><span>${esc(p.name)}</span><span><button data-dec="${id}" aria-label="Remove one">−</button> ${cart[id]} <button data-add="${id}" aria-label="Add one" ${cart[id] >= p.stock ? 'disabled' : ''}>+</button></span><span class="price">${gbp.format(p.price * cart[id])}</span></div>`;
+  }).join('') + `<div class="cart-total">Total <span class="price">${gbp.format(total)}</span></div>` : '<p class="muted">Your basket is empty.</p>';
   document.getElementById('cart-count').textContent = ids.reduce((s, id) => s + cart[id], 0);
 }
 function setProducts(list) {
