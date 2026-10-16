@@ -7,7 +7,6 @@ const notify = require('./notify');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
-const DB = path.join(__dirname, 'data', 'db.json');
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 // Test mode only unless the owner deliberately opts in to live keys.
@@ -22,31 +21,20 @@ function stripeOpts() {
 }
 const stripe = new Stripe(STRIPE_KEY || 'sk_test_not_configured', stripeOpts());
 
-const SEED = path.join(__dirname, 'data', 'seed.json');
-const SAMPLES = JSON.parse(fs.readFileSync(SEED, 'utf8'));
-
-function load() {
-  fs.mkdirSync(path.dirname(DB), { recursive: true });
-  if (!fs.existsSync(DB)) {
-    const db = { products: SAMPLES.map((p, i) => ({ id: i + 1, sample: true, ...p })), orders: [], nextId: SAMPLES.length + 1 };
-    save(db); return db;
-  }
-  const d = JSON.parse(fs.readFileSync(DB, 'utf8'));
-  d.orders = d.orders || [];
-  return d;
-}
-function save(d) { const t = DB + '.tmp'; fs.writeFileSync(t, JSON.stringify(d, null, 2)); fs.renameSync(t, DB); }
-let db = load();
+const store = require('./store')();
+let db = null; // loaded in start()
+function save(d) { const p = store.save(d); p.catch(() => {}); return p; }
 
 const app = express();
 app.set('trust proxy', 1); // Render terminates HTTPS at its proxy
 // Stripe webhook needs the raw body for signature checks, so it is registered before express.json().
-app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
   if (!WEBHOOK_SECRET) { console.warn('[stripe] webhook received but STRIPE_WEBHOOK_SECRET is not set'); return res.status(503).send('Webhook not configured'); }
   let event;
   try { event = stripe.webhooks.constructEvent(req.body, req.get('stripe-signature') || '', WEBHOOK_SECRET); }
   catch (e) { console.warn('[stripe] bad webhook signature:', e.message); return res.status(400).send('Bad signature'); }
-  try { handleEvent(event); } catch (e) { console.error('[stripe] handler error', e); return res.status(500).send('Handler error'); }
+  // Persist before acknowledging, so Stripe retries if the database write fails.
+  try { handleEvent(event); await store.flush(); await save(db); } catch (e) { console.error('[stripe] handler error', e); return res.status(500).send('Handler error'); }
   res.json({ received: true });
 });
 app.use(express.json());
@@ -90,6 +78,9 @@ app.get('/api/products', (req, res) => {
 // --- Stripe Checkout -------------------------------------------------------
 // Prices and stock come from the server's product data only; the client sends ids and quantities.
 const pence = n => Math.round(Number(n) * 100);
+// Postage (UK): free when the goods subtotal is £30 or more, otherwise £3.50. Computed in pence.
+const FREE_POSTAGE_FROM_P = 3000, POSTAGE_P = 350;
+const postagePence = subtotalP => (subtotalP >= FREE_POSTAGE_FROM_P ? 0 : POSTAGE_P);
 function baseUrl(req) { return (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, ''); }
 function releaseStock(order) {
   if (order.stockReleased || order.status !== 'pending') return;
@@ -97,7 +88,12 @@ function releaseStock(order) {
   order.stockReleased = true;
 }
 
-app.get('/api/config', (req, res) => res.json({ payments: PAYMENTS_ON, testMode: !STRIPE_KEY.startsWith('sk_live_') }));
+app.get('/api/config', (req, res) => res.json({ payments: PAYMENTS_ON, testMode: !STRIPE_KEY.startsWith('sk_live_'), freePostageFrom: FREE_POSTAGE_FROM_P / 100, postage: POSTAGE_P / 100 }));
+// Lets the basket (e.g. in the Android app, where Stripe opens in the browser) see whether its order was paid.
+app.get('/api/orders/:id/status', (req, res) => {
+  const o = db.orders.find(x => x.id === String(req.params.id));
+  res.json(o ? { status: o.status } : { status: 'unknown' });
+});
 
 app.post('/api/checkout/session', async (req, res) => {
   if (!PAYMENTS_ON) return res.status(503).json({ error: "Payments aren't set up yet — please check back soon or contact us to order.", notConfigured: true });
@@ -121,8 +117,11 @@ app.post('/api/checkout/session', async (req, res) => {
   lines.forEach(({ p, q }) => { p.stock -= q; });
   const order = { id: crypto.randomBytes(4).toString('hex').toUpperCase(), status: 'pending', createdAt: new Date().toISOString(),
     items: lines.map(({ p, q }) => ({ id: p.id, name: p.name, qty: q, price: p.price })),
-    total: +lines.reduce((s, { p, q }) => s + p.price * q, 0).toFixed(2), currency: 'gbp' };
-  db.orders.push(order); save(db);
+    currency: 'gbp' };
+  const subP = lines.reduce((s, { p, q }) => s + pence(p.price) * q, 0), postP = postagePence(subP);
+  order.subtotal = subP / 100; order.postage = postP / 100; order.total = (subP + postP) / 100;
+  db.orders.push(order);
+  try { await save(db); } catch { releaseStock(order); db.orders.pop(); return res.status(503).json({ error: "The shop couldn't save your order. Please try again." }); }
   const base = baseUrl(req);
   try {
     const session = await stripe.checkout.sessions.create({
@@ -130,14 +129,16 @@ app.post('/api/checkout/session', async (req, res) => {
       currency: 'gbp',
       line_items: lines.map(({ p, q }) => ({ quantity: q, price_data: { currency: 'gbp', unit_amount: pence(p.price), product_data: { name: p.name } } })),
       shipping_address_collection: { allowed_countries: ['GB'] },
+      shipping_options: [{ shipping_rate_data: { type: 'fixed_amount', display_name: postP ? 'UK delivery' : 'Free UK delivery (orders £30+)',
+        fixed_amount: { amount: postP, currency: 'gbp' } } }],
       client_reference_id: order.id,
       metadata: { order_id: order.id },
       expires_at: Math.floor(Date.now() / 1000) + RESERVE_MIN * 60,
       success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/checkout/cancel?order=${order.id}`,
     }, { idempotencyKey: 'order-' + order.id });
-    order.sessionId = session.id; save(db);
-    res.json({ url: session.url });
+    order.sessionId = session.id; await save(db);
+    res.json({ url: session.url, order: order.id });
   } catch (e) {
     console.error('[stripe] session create failed:', e.message);
     releaseStock(order); order.status = 'failed'; save(db);
@@ -194,7 +195,7 @@ app.get('/checkout/success', async (req, res) => {
   if (!order) return res.status(404).send(page('Order not found', `<h1>We couldn't find that order</h1><p>If you've paid, you'll get an email receipt from Stripe. <a href="/#contact">Contact us</a> if you need help.</p><p><a class="btn" href="/">Back to the shop</a></p>`));
   const paid = order.status === 'paid' || order.status === 'sent';
   res.send(page(paid ? 'Thank you' : 'Payment processing', `<h1>${paid ? 'Thank you for your order!' : 'Your payment is being confirmed'}</h1>
-<p>Order <strong>${escH(order.id)}</strong> · ${gbpFmt.format(order.total)}</p>
+<p>Order <strong>${escH(order.id)}</strong> · ${gbpFmt.format(order.total)}${order.postage != null ? ` <span class="muted">(includes ${order.postage ? gbpFmt.format(order.postage) + ' postage' : 'free postage'})</span>` : ''}</p>
 <ul class="result-items">${order.items.map(i => `<li>${escH(i.qty)} × ${escH(i.name)}</li>`).join('')}</ul>
 <p>${paid ? `We've received your payment${order.email ? ` and a receipt is on its way to <strong>${escH(order.email)}</strong>` : ''}. Your print will be made to order and we'll let you know when it's sent.` : "This usually takes a few seconds. You'll get an email receipt once it's confirmed."}</p>
 <p><a class="btn" href="/">Back to the shop</a></p>`));
@@ -254,9 +255,14 @@ app.delete('/api/admin/products/:id', auth, (req, res) => {
 app.get(['/', '/index.html'], (req, res) => sendShopHtml(req, res, 'index.html'));
 app.get(['/privacy', '/privacy.html'], (req, res) => sendShopHtml(req, res, 'privacy.html'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(PORT, () => {
+async function start() {
+  db = await store.init();
+  app.listen(PORT, () => {
+  console.log(`Storage: ${store.kind}`);
   console.log(PAYMENTS_ON ? `Stripe payments ON (${STRIPE_KEY.startsWith('sk_live_') ? 'LIVE' : 'test'} mode)` : (LIVE_BLOCKED ? 'Stripe live key refused: set STRIPE_ALLOW_LIVE=1 to go live' : 'Stripe not configured: checkout shows "payments not set up"'));
   if (PAYMENTS_ON && !WEBHOOK_SECRET) console.warn('STRIPE_WEBHOOK_SECRET is not set: paid orders will not be recorded!');
   console.log(`Craftedimension demo shop on http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin  password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? ' (from env)' : ' (random, generated at startup — set ADMIN_PASSWORD to fix it)'}`);
 });
+}
+start().catch(e => { console.error('Startup failed:', e.message); process.exit(1); });

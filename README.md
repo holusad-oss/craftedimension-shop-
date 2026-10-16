@@ -37,3 +37,11 @@ The storefront has no admin link of its own. The shop page in a normal browser i
 
 ## Privacy
 `/privacy` (`public/privacy.html`) is linked from the footer. Replace the `[OWNER NAME]` and `[CONTACT EMAIL]` placeholders before launch.
+
+## Storage
+
+Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
+
+## Postage
+
+UK postage is £3.50, free when the goods subtotal is £30 or more. It is calculated on the server and sent to Stripe as a fixed-amount shipping rate.

@@ -7,7 +7,7 @@ function formatOrder(o) {
   const addr = [o.shipping && o.shipping.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).join('\n');
   return `New paid order ${o.id}\n\n` +
     o.items.map(i => `${i.qty} × ${i.name} @ ${gbp.format(i.price)}`).join('\n') +
-    `\n\nTotal paid: ${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}\nCustomer email: ${o.email || '-'}\n\nShip to:\n${addr || '(no address)'}\n`;
+    `\nPostage: ${o.postage ? gbp.format(o.postage) : 'FREE'}\n\nTotal paid: ${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}\nCustomer email: ${o.email || '-'}\n\nShip to:\n${addr || '(no address)'}\n`;
 }
 
 let transport = null;

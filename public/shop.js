@@ -21,8 +21,17 @@ function render() {
     const p = products.find(x => x.id == id); if (!p) return '';
     total += p.price * cart[id];
     return `<div class="cart-line"><span>${esc(p.name)}</span><span><button data-dec="${id}" aria-label="Remove one">−</button> ${cart[id]} <button data-add="${id}" aria-label="Add one" ${cart[id] >= p.stock ? 'disabled' : ''}>+</button></span><span class="price">${gbp.format(p.price * cart[id])}</span></div>`;
-  }).join('') + `<div class="cart-total">Total <span class="price">${gbp.format(total)}</span></div>` : '<p class="muted">Your basket is empty.</p>';
+  }).join('') + basketTotals(total) : '<p class="muted">Your basket is empty.</p>';
   document.getElementById('cart-count').textContent = ids.reduce((s, id) => s + cart[id], 0);
+}
+// Display only — the server recalculates postage from its own prices at checkout.
+const FREE_FROM = 30, POSTAGE = 3.5;
+function basketTotals(sub) {
+  const subP = Math.round(sub * 100), post = subP >= FREE_FROM * 100 ? 0 : POSTAGE;
+  const hint = post ? `<p class="postage-hint">Add ${gbp.format(FREE_FROM - subP / 100)} more for <strong>free UK postage</strong> on orders of ${gbp.format(FREE_FROM)} or more.</p>` : '<p class="postage-hint ok">You\u2019ve got <strong>free UK postage</strong>.</p>';
+  return `<div class="cart-sum"><span>Subtotal</span><span class="price">${gbp.format(sub)}</span></div>
+    <div class="cart-sum"><span>UK postage</span><span class="price">${post ? gbp.format(post) : 'FREE'}</span></div>
+    <div class="cart-total">Total <span class="price">${gbp.format(subP / 100 + post)}</span></div>${hint}`;
 }
 function setProducts(list) {
   products = list;
@@ -58,9 +67,24 @@ document.getElementById('checkout').addEventListener('submit', async e => {
     const r = await fetch('/api/checkout/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
     const j = await r.json();
     if (j.products) setProducts(j.products);
-    if (r.ok && j.url) { location.href = j.url; return; }
+    if (r.ok && j.url) { try { sessionStorage.setItem('cdPendingOrder', j.order); } catch {} location.href = j.url; setTimeout(() => { btn.disabled = false; }, 4000); return; }
     msg.className = 'err'; msg.textContent = j.error || 'Something went wrong. Please try again.';
   } catch { msg.className = 'err'; msg.textContent = "Couldn't reach the shop. Check your connection and try again."; }
   btn.disabled = false;
 });
+// When checkout opened outside this page (Android app -> system browser), check the order on return.
+async function checkPending() {
+  let id; try { id = sessionStorage.getItem('cdPendingOrder'); } catch {}
+  if (!id) return;
+  const msg = document.getElementById('checkout-msg'), btn = document.getElementById('checkout-btn');
+  btn.disabled = false;
+  try {
+    const { status } = await (await fetch('/api/orders/' + encodeURIComponent(id) + '/status')).json();
+    if (status === 'paid' || status === 'sent') { sessionStorage.removeItem('cdPendingOrder'); cart = {}; msg.className = 'ok'; msg.textContent = `Thank you! Order ${id} is paid. A receipt is on its way by email.`; refresh(); }
+    else if (status === 'pending') { msg.className = ''; msg.textContent = 'Finish paying on the Stripe page, or tap Checkout securely to start again.'; }
+    else { sessionStorage.removeItem('cdPendingOrder'); refresh(); }
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPending(); });
+window.addEventListener('pageshow', checkPending);
 refresh(); setInterval(refresh, 10000);
