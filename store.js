@@ -14,6 +14,14 @@ function seedState() {
   return { state: { products: s.map((p, i) => ({ id: i + 1, sample: true, ...p })), orders: [], nextId: s.length + 1 }, from: 'data/seed.json' };
 }
 
+const UPLOAD_DIR = path.join(__dirname, 'data', 'uploads');
+
+function imageId(id) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return n;
+}
+
 class JsonStore {
   constructor() { this.kind = 'json-file'; }
   async init() {
@@ -26,6 +34,31 @@ class JsonStore {
   write(d) { const t = DB_FILE + '.tmp'; fs.writeFileSync(t, JSON.stringify(d, null, 2)); fs.renameSync(t, DB_FILE); }
   save(d) { this.write(d); return Promise.resolve(); }
   flush() { return Promise.resolve(); }
+  async saveImage(id, full, thumb) {
+    const n = imageId(id);
+    if (!n) throw new Error('Bad product id');
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    const fullPath = path.join(UPLOAD_DIR, n + '.webp');
+    const thumbPath = path.join(UPLOAD_DIR, n + '-thumb.webp');
+    fs.writeFileSync(fullPath + '.tmp', full); fs.renameSync(fullPath + '.tmp', fullPath);
+    fs.writeFileSync(thumbPath + '.tmp', thumb); fs.renameSync(thumbPath + '.tmp', thumbPath);
+  }
+  async readImage(id, kind) {
+    const n = imageId(id);
+    if (!n) return null;
+    const file = path.join(UPLOAD_DIR, n + (kind === 'thumb' ? '-thumb' : '') + '.webp');
+    if (!fs.existsSync(file)) return null;
+    const st = fs.statSync(file);
+    return { buf: fs.readFileSync(file), updated: st.mtime };
+  }
+  async deleteImage(id) {
+    const n = imageId(id);
+    if (!n) return;
+    for (const name of [n + '.webp', n + '-thumb.webp']) {
+      const file = path.join(UPLOAD_DIR, name);
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
+  }
 }
 
 class PgStore {
@@ -40,7 +73,13 @@ class PgStore {
       CREATE TABLE IF NOT EXISTS products (id integer PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
       CREATE TABLE IF NOT EXISTS orders (id text PRIMARY KEY, status text NOT NULL, created_at timestamptz NOT NULL, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
       CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status);
-      CREATE TABLE IF NOT EXISTS meta (key text PRIMARY KEY, value jsonb NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS meta (key text PRIMARY KEY, value jsonb NOT NULL);
+      CREATE TABLE IF NOT EXISTS product_images (
+        product_id integer PRIMARY KEY,
+        full bytea NOT NULL,
+        thumb bytea NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );`);
     const has = (await this.pool.query('SELECT 1 FROM meta WHERE key = $1', ['nextId'])).rowCount;
     if (!has) {
       const { state, from } = seedState();
@@ -83,6 +122,28 @@ class PgStore {
     return this.pending;
   }
   flush() { return this.chain; }
+  async saveImage(id, full, thumb) {
+    const n = imageId(id);
+    if (!n) throw new Error('Bad product id');
+    await this.pool.query(
+      `INSERT INTO product_images (product_id, full, thumb) VALUES ($1, $2, $3)
+       ON CONFLICT (product_id) DO UPDATE SET full = EXCLUDED.full, thumb = EXCLUDED.thumb, updated_at = now()`,
+      [n, full, thumb]
+    );
+  }
+  async readImage(id, kind) {
+    const n = imageId(id);
+    if (!n) return null;
+    const col = kind === 'thumb' ? 'thumb' : 'full';
+    const r = await this.pool.query(`SELECT ${col} AS data, updated_at FROM product_images WHERE product_id = $1`, [n]);
+    if (!r.rowCount) return null;
+    return { buf: r.rows[0].data, updated: r.rows[0].updated_at };
+  }
+  async deleteImage(id) {
+    const n = imageId(id);
+    if (!n) return;
+    await this.pool.query('DELETE FROM product_images WHERE product_id = $1', [n]);
+  }
 }
 
 module.exports = function createStore() {

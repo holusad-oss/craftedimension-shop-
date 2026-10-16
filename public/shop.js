@@ -8,8 +8,9 @@ function render() {
   document.getElementById('grid').innerHTML = products.filter(p => filter === 'All' || p.printType === filter).map(p => {
     const inCart = cart[p.id] || 0, avail = p.stock - inCart;
     const st = p.stock === 0 ? '<span class="stock out">Sold out</span>' : `<span class="stock${p.stock <= 3 ? ' low' : ''}">${p.stock} left</span>`;
+    const media = p.image ? `<img src="${esc(p.thumb || p.image)}" alt="${esc(p.name)}">` : CUBE;
     return `<article class="card">
-      <div class="card-media">${CUBE}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
+      <div class="card-media">${media}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
       <h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
       <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span><br>${st}</div>
       <button class="btn small" data-add="${p.id}" ${avail <= 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : avail <= 0 ? 'All in basket' : 'Add to basket'}</button></div>

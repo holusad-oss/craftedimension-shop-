@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Stripe = require('stripe');
+const multer = require('multer');
+const sharp = require('sharp');
 const notify = require('./notify');
 
 const PORT = process.env.PORT || 3000;
@@ -24,6 +26,40 @@ const stripe = new Stripe(STRIPE_KEY || 'sk_test_not_configured', stripeOpts());
 const store = require('./store')();
 let db = null; // loaded in start()
 function save(d) { const p = store.save(d); p.catch(() => {}); return p; }
+
+const MAX_PHOTO = 8 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_PHOTO, files: 1 },
+  fileFilter(req, file, cb) {
+    const type = String(file.mimetype || '').toLowerCase();
+    const name = String(file.originalname || '').toLowerCase();
+    if (type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/.test(name)) return cb(null, true);
+    cb(new Error('Please choose a photo (JPEG, PNG, WebP or HEIC).'));
+  },
+});
+function withPhoto(req, res, next) {
+  const ct = req.headers['content-type'] || '';
+  if (!ct.includes('multipart/form-data')) return next();
+  upload.single('photo')(req, res, err => {
+    if (!err) return next();
+    const tooBig = err.code === 'LIMIT_FILE_SIZE';
+    res.status(tooBig ? 413 : 400).json({
+      error: tooBig ? 'That photo is larger than 8MB. Please choose a smaller one.' : (err.message || 'Could not read that photo.'),
+    });
+  });
+}
+async function makeWebp(buf) {
+  const img = sharp(buf, { failOn: 'none', animated: false, limitInputPixels: 80e6 }).rotate();
+  const meta = await img.metadata();
+  if (!meta || !meta.width || !meta.height) throw new Error('unreadable');
+  const full = await img.clone().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+  const thumb = await img.clone().resize({ width: 400, height: 400, fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+  return { full, thumb };
+}
+function photoError() {
+  return "Couldn't use that photo. Please choose a JPEG, PNG, WebP or HEIC image.";
+}
 
 const app = express();
 app.set('trust proxy', 1); // Render terminates HTTPS at its proxy
@@ -69,10 +105,34 @@ app.use((req, res, next) => {
 app.use('/admin', notForApp);
 app.use('/api/admin', notForApp);
 
-const pub = p => ({ id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample });
+const pub = p => {
+  const o = { id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample };
+  if (p.photo) {
+    const v = p.photoRev || 1;
+    o.image = `/img/p/${p.id}.webp?v=${v}`;
+    o.thumb = `/img/p/${p.id}-thumb.webp?v=${v}`;
+  }
+  return o;
+};
+function publicList() { return db.products.filter(p => !p.hidden).map(pub); }
 app.get('/api/products', (req, res) => {
   const t = String(req.query.type || '').toLowerCase();
-  res.json(db.products.filter(p => !t || t === 'all' || (p.printType || 'FDM').toLowerCase() === t).map(pub));
+  res.json(publicList().filter(p => !t || t === 'all' || (p.printType || 'FDM').toLowerCase() === t));
+});
+app.get('/img/p/:name', async (req, res) => {
+  const m = /^(\d+)(-thumb)?\.webp$/.exec(req.params.name);
+  if (!m) return res.status(404).type('text').send('Not found');
+  let img;
+  try { img = await store.readImage(Number(m[1]), m[2] ? 'thumb' : 'full'); }
+  catch (e) { console.error('[img]', e.message); return res.status(500).type('text').send('Not found'); }
+  if (!img) return res.status(404).type('text').send('Not found');
+  if (!Buffer.isBuffer(img.buf)) img.buf = Buffer.from(img.buf);
+  const etag = '"' + new Date(img.updated).getTime() + '-' + img.buf.length + '"';
+  res.set('Content-Type', 'image/webp');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.set('ETag', etag);
+  if (req.get('if-none-match') === etag) return res.status(304).end();
+  res.send(img.buf);
 });
 
 // --- Stripe Checkout -------------------------------------------------------
@@ -109,8 +169,9 @@ app.post('/api/checkout/session', async (req, res) => {
   for (const [id, q] of Object.entries(qty)) {
     const p = db.products.find(x => x.id === Number(id));
     if (!p) return res.status(400).json({ error: `Unknown product ${id}.` });
+    if (p.hidden) return res.status(409).json({ error: `${p.name} isn't in the shop any more.`, products: publicList() });
     if (!(p.price > 0)) return res.status(400).json({ error: `${p.name} can't be bought online yet.` });
-    if (p.stock < q) return res.status(409).json({ error: p.stock === 0 ? `${p.name} is sold out.` : `Only ${p.stock} of ${p.name} left.`, products: db.products.map(pub) });
+    if (p.stock < q) return res.status(409).json({ error: p.stock === 0 ? `${p.name} is sold out.` : `Only ${p.stock} of ${p.name} left.`, products: publicList() });
     lines.push({ p, q });
   }
   // Reserve stock now (synchronously, so no oversell); released if the session expires or is cancelled.
@@ -142,7 +203,7 @@ app.post('/api/checkout/session', async (req, res) => {
   } catch (e) {
     console.error('[stripe] session create failed:', e.message);
     releaseStock(order); order.status = 'failed'; save(db);
-    res.status(502).json({ error: "We couldn't start the payment. Please try again in a moment.", products: db.products.map(pub) });
+    res.status(502).json({ error: "We couldn't start the payment. Please try again in a moment.", products: publicList() });
   }
 });
 
@@ -227,29 +288,63 @@ app.post('/api/admin/orders/:id/sent', auth, (req, res) => {
   const undo = req.body && req.body.sent === false;
   o.status = undo ? 'paid' : 'sent'; o.sentAt = undo ? undefined : new Date().toISOString(); save(db); res.json(o);
 });
-function clean(b, base = {}) {
+function truthy(v) { return v === true || v === 'true' || v === '1' || v === 'on'; }
+function clean(b, base = {}, full) {
   const p = { ...base };
-  if (b.name !== undefined) p.name = String(b.name).slice(0, 120);
+  if (b.name !== undefined) p.name = String(b.name).trim().slice(0, 120);
   if (b.description !== undefined) p.description = String(b.description).slice(0, 500);
   if (b.price !== undefined) p.price = Math.max(0, +Number(b.price).toFixed(2) || 0);
   if (b.stock !== undefined) p.stock = Math.max(0, Math.floor(Number(b.stock)) || 0);
   if (b.gradient !== undefined) p.gradient = Number(b.gradient) % 3 || 0;
   if (b.printType !== undefined) p.printType = String(b.printType).toLowerCase() === 'resin' ? 'Resin' : 'FDM';
-  if (b.sample !== undefined) p.sample = !!b.sample;
+  if (full || b.sample !== undefined) p.sample = truthy(b.sample);
+  if (b.hidden !== undefined) p.hidden = truthy(b.hidden);
+  delete p.photoFile;
   return p;
 }
-app.post('/api/admin/products', auth, (req, res) => {
-  if (!req.body.name) return res.status(400).json({ error: 'Name required' });
-  const p = clean({ price: 0, stock: 0, gradient: 0, description: '', sample: false, printType: 'FDM', ...req.body }, { id: db.nextId++ });
-  db.products.push(p); save(db); res.json(p);
+async function attachPhoto(p, file) {
+  if (!file) return null;
+  let images;
+  try { images = await makeWebp(file.buffer); }
+  catch { return photoError(); }
+  try { await store.saveImage(p.id, images.full, images.thumb); }
+  catch (e) { console.error('[img] save failed', e.message); return "Couldn't store that photo. Please try again."; }
+  p.photo = true;
+  p.photoRev = Date.now();
+  return null;
+}
+app.post('/api/admin/products', auth, withPhoto, async (req, res) => {
+  const body = req.body || {};
+  if (!String(body.name || '').trim()) return res.status(400).json({ error: 'Please enter a name.' });
+  const p = clean(body, { id: db.nextId++, price: 0, stock: 0, gradient: 0, description: '', sample: false, printType: 'FDM', hidden: false }, true);
+  const photoErr = await attachPhoto(p, req.file);
+  if (photoErr) { db.nextId--; return res.status(photoErr.indexOf('store') >= 0 ? 503 : 400).json({ error: photoErr }); }
+  db.products.push(p);
+  try { await save(db); }
+  catch { db.products.pop(); if (p.photo) await store.deleteImage(p.id).catch(() => {}); return res.status(503).json({ error: "Couldn't save that product. Please try again." }); }
+  res.json(p);
 });
-app.put('/api/admin/products/:id', auth, (req, res) => {
+app.put('/api/admin/products/:id', auth, withPhoto, async (req, res) => {
   const i = db.products.findIndex(p => p.id === Number(req.params.id));
   if (i < 0) return res.status(404).json({ error: 'Not found' });
-  db.products[i] = clean(req.body, db.products[i]); save(db); res.json(db.products[i]);
+  const multipart = (req.headers['content-type'] || '').includes('multipart/form-data');
+  const next = clean(req.body || {}, db.products[i], multipart);
+  if (!String(next.name || '').trim()) return res.status(400).json({ error: 'Please enter a name.' });
+  const photoErr = await attachPhoto(next, req.file);
+  if (photoErr) return res.status(400).json({ error: photoErr });
+  db.products[i] = next;
+  try { await save(db); }
+  catch { return res.status(503).json({ error: "Couldn't save those changes. Please try again." }); }
+  res.json(next);
 });
-app.delete('/api/admin/products/:id', auth, (req, res) => {
-  db.products = db.products.filter(p => p.id !== Number(req.params.id)); save(db); res.json({ ok: true });
+app.delete('/api/admin/products/:id', auth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.products.some(p => p.id === id)) return res.status(404).json({ error: 'Not found' });
+  const kept = db.products;
+  db.products = db.products.filter(p => p.id !== id);
+  try { await store.deleteImage(id); await save(db); }
+  catch { db.products = kept; return res.status(503).json({ error: "Couldn't delete that product. Please try again." }); }
+  res.json({ ok: true });
 });
 
 app.get(['/', '/index.html'], (req, res) => sendShopHtml(req, res, 'index.html'));

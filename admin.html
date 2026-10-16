@@ -1,27 +1,218 @@
-<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin — Craftedimension</title>
-<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="stylesheet" href="/styles.css">
-<style>table{width:100%;border-collapse:collapse;font-size:.95rem}td,th{padding:.45rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}td input{padding:.4rem .5rem}.wrap{overflow-x:auto}select{padding:.45rem .6rem;border:var(--hair);border-radius:2px;background:transparent;font:inherit}.status{display:inline-block;padding:.1rem .5rem;border-radius:2px;font-size:.8rem;font-weight:700;text-transform:uppercase;background:#eee;color:var(--ink)}.status-paid{background:#f4d9a8;color:#6b3d00}.status-sent{background:#cfe6d4;color:#1f5130}.status-pending,.status-cancelled,.status-expired,.status-failed{color:#5c4033}</style></head>
-<body><header class="site-header"><a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a><nav><a href="/">View shop</a></nav></header>
-<main><h1>Shop admin</h1><p class="demo-note">Paid orders come from Stripe. Mark an order as sent once it's posted.</p>
-<h2>Products</h2><div class="wrap"><table><thead><tr><th>Name</th><th>Description</th><th>Price £</th><th>Stock</th><th>Type</th><th>Sample</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
-<h2>Add product</h2><form id="add" class="contact-form"><label>Name<input name="name" required></label><label>Description<input name="description"></label><label>Price (£)<input name="price" type="number" step="0.01" min="0" required></label><label>Stock<input name="stock" type="number" min="0" required></label><label>Print type<select name="printType"><option>FDM</option><option>Resin</option></select></label><button class="btn">Add product</button></form>
-<h2>Orders</h2><label style="display:inline-flex;align-items:center;margin-bottom:.5rem"><input type="checkbox" id="showall" style="width:auto;margin-right:.4rem" onchange="load()"> Show unpaid/cancelled too</label><div class="wrap"><table><thead><tr><th>Order</th><th>When</th><th>Status</th><th>Customer</th><th>Ship to</th><th>Items</th><th>Total</th><th></th></tr></thead><tbody id="orders"></tbody></table></div></main>
-<script>
-const gbp=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'});const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
-async function api(u,m='GET',b){const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b&&JSON.stringify(b)});return r.json();}
-async function load(){const d=await api('/api/admin/data');
-rows.innerHTML=d.products.map(p=>`<tr data-id="${p.id}"><td><input name="name" value="${esc(p.name)}"></td><td><input name="description" value="${esc(p.description)}"></td><td><input name="price" type="number" step="0.01" value="${p.price}" style="width:6rem"></td><td><input name="stock" type="number" min="0" value="${p.stock}" style="width:5rem"></td><td><select name="printType"><option ${p.printType!=='Resin'?'selected':''}>FDM</option><option ${p.printType==='Resin'?'selected':''}>Resin</option></select></td><td><input name="sample" type="checkbox" ${p.sample?'checked':''} style="width:auto"></td><td><button class="btn small" data-save>Save</button> <button class="btn small" data-del style="background:#a3331f">Delete</button></td></tr>`).join('');
-const addr=o=>{const s=o.shipping;if(!s)return '—';const a=s.address||{};return [s.name,a.line1,a.line2,a.city,a.state,a.postal_code,a.country].filter(Boolean).map(esc).join('<br>');};
-const badge=o=>{const s=o.status||'demo';return `<span class="status status-${esc(s)}">${esc(s)}</span>`+(o.sentAt?`<br><small>${new Date(o.sentAt).toLocaleDateString('en-GB')}</small>`:'')+(o.note?`<br><small>${esc(o.note)}</small>`:'');};
-const show=document.getElementById('showall');const list=d.orders.slice().reverse().filter(o=>show.checked||['paid','sent','awaiting_payment'].includes(o.status));
-orders.innerHTML=list.map(o=>`<tr data-order="${esc(o.id)}"><td>${esc(o.id)}</td><td>${new Date(o.paidAt||o.createdAt).toLocaleString('en-GB')}</td><td>${badge(o)}</td><td>${esc(o.name||'')}<br>${esc(o.email||'')}</td><td>${addr(o)}</td><td>${o.items.map(i=>esc(i.qty+'× '+i.name)).join('<br>')}</td><td>${gbp.format(o.amountPaid!=null?o.amountPaid:o.total)}${o.postage!=null?`<br><small>${o.postage?'incl. '+gbp.format(o.postage)+' postage':'free postage'}</small>`:''}</td><td>${o.status==='paid'?'<button class="btn small" data-sent>Mark sent</button>':o.status==='sent'?'<button class="btn small btn-ghost" data-unsent>Undo</button>':''}</td></tr>`).join('')||'<tr><td colspan=8>No paid orders yet.</td></tr>';}
-document.addEventListener('click',async e=>{const ot=e.target.closest('tr[data-order]');if(ot&&(e.target.hasAttribute('data-sent')||e.target.hasAttribute('data-unsent'))){await api('/api/admin/orders/'+ot.dataset.order+'/sent','POST',{sent:e.target.hasAttribute('data-sent')});return load();}const tr=e.target.closest('tr[data-id]');if(!tr)return;const id=tr.dataset.id;
-if(e.target.hasAttribute('data-save')){const b={};tr.querySelectorAll('input,select').forEach(i=>b[i.name]=i.type==='checkbox'?i.checked:i.value);await api('/api/admin/products/'+id,'PUT',b);load();}
-if(e.target.hasAttribute('data-del')&&confirm('Delete this product?')){await api('/api/admin/products/'+id,'DELETE');load();}});
-add.addEventListener('submit',async e=>{e.preventDefault();await api('/api/admin/products','POST',Object.fromEntries(new FormData(add)));add.reset();load();});load();
-</script></body></html>
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Craftedimension</title>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    td, th { padding: .45rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    td input { padding: .4rem .5rem; }
+    .wrap { overflow-x: auto; }
+    select { padding: .45rem .6rem; border: var(--hair); border-radius: 2px; background: transparent; font: inherit; }
+    .status { display: inline-block; padding: .1rem .5rem; border-radius: 2px; font-size: .8rem; font-weight: 700; text-transform: uppercase; background: #eee; color: var(--ink); }
+    .status-paid { background: #f4d9a8; color: #6b3d00; }
+    .status-sent { background: #cfe6d4; color: #1f5130; }
+    .status-pending, .status-cancelled, .status-expired, .status-failed { color: #5c4033; }
+    .admin-form label { display: block; margin: 0 0 0.95rem; font-weight: 600; }
+    .admin-form input, .admin-form select, .admin-form textarea {
+      display: block; width: 100%; margin-top: 0.35rem; min-height: 48px; font-size: 1.1rem;
+    }
+    .admin-form textarea { min-height: 7rem; }
+    .admin-form .check { display: flex; align-items: center; min-height: 48px; font-weight: 600; }
+    .admin-form .check input { width: 1.4rem; height: 1.4rem; min-height: 0; margin: 0 0.7rem 0 0; }
+    .hint { display: block; margin-top: 0.3rem; color: var(--muted); font-weight: 400; font-size: 1rem; }
+    #photo-preview { display: block; width: min(100%, 280px); height: auto; margin: 0 0 0.9rem; border: var(--hair); }
+    #photo-preview[hidden] { display: none; }
+    #product-msg { margin: 0 0 0.8rem; font-weight: 600; }
+    #product-msg.err { color: #8a3d16; }
+    #product-msg.ok { color: var(--oxblood); }
+    .admin-form .btn { width: 100%; min-height: 48px; margin: 0 0 0.6rem; }
+    .pcard { border: var(--hair); border-radius: 2px; padding: 0.9rem; margin: 0 0 0.9rem; }
+    .pcard img.shot { width: 96px; height: 96px; object-fit: cover; display: block; margin: 0 0 0.6rem; background: var(--media); }
+    .pcard h3 { margin: 0 0 0.25rem; }
+    .pcard p { margin: 0 0 0.7rem; color: var(--muted); }
+    .hidden-flag { display: inline-block; margin: 0 0 0.45rem; padding: 0.15rem 0.45rem; border: var(--hair); font-weight: 700; color: var(--oxblood); }
+    .prow .btn { min-height: 48px; margin: 0 0.55rem 0.55rem 0; }
+    @media (max-width: 640px) {
+      .prow .btn { display: flex; width: 100%; margin-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a>
+    <nav><a href="/">View shop</a></nav>
+  </header>
+  <main>
+    <h1>Shop admin</h1>
+    <p class="demo-note">Paid orders come from Stripe. Mark an order as sent once it's posted.</p>
+
+    <h2>Products</h2>
+    <p>Add a product, change it, or hide it from the shop. A photo from your phone camera is fine.</p>
+    <form id="product-form" class="admin-form">
+      <h3 id="form-title">Add a product</h3>
+      <p id="product-msg" role="status"></p>
+      <label>Name <input name="name" required maxlength="120" autocomplete="off"></label>
+      <label>Description <textarea name="description" rows="4" maxlength="500"></textarea></label>
+      <label>Price (£) <input name="price" type="number" inputmode="decimal" min="0" step="0.01" required></label>
+      <label>How many in stock <input name="stock" type="number" inputmode="numeric" min="0" step="1" required></label>
+      <label>Print type
+        <select name="printType"><option>FDM</option><option>Resin</option></select>
+      </label>
+      <label class="check"><input type="checkbox" name="sample"> This is sample data</label>
+      <label>Photo
+        <input name="photo" type="file" accept="image/*">
+        <span class="hint">Take a photo or choose one from your phone. JPEG, PNG, WebP or HEIC, up to 8MB.</span>
+      </label>
+      <img id="photo-preview" alt="Chosen photo" hidden>
+      <button class="btn" type="submit" id="save-product">Add product</button>
+      <button class="btn btn-ghost" type="button" id="cancel-edit" hidden>Cancel</button>
+    </form>
+    <div id="product-list"></div>
+
+    <h2>Orders</h2>
+    <label class="check" style="display:flex;align-items:center;min-height:48px;margin-bottom:.5rem"><input type="checkbox" id="showall" style="width:1.4rem;height:1.4rem;min-height:0;margin:0 .7rem 0 0" onchange="load()"> Show unpaid and cancelled too</label>
+    <div class="wrap">
+      <table>
+        <thead><tr><th>Order</th><th>When</th><th>Status</th><th>Customer</th><th>Ship to</th><th>Items</th><th>Total</th><th></th></tr></thead>
+        <tbody id="orders"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
+    const form = document.getElementById('product-form');
+    const msg = document.getElementById('product-msg');
+    const listEl = document.getElementById('product-list');
+    const preview = document.getElementById('photo-preview');
+    const cancelBtn = document.getElementById('cancel-edit');
+    let products = [];
+    let editing = null;
+    let blobUrl = '';
+
+    async function api(u, m, b) {
+      const opt = { method: m || 'GET' };
+      if (b instanceof FormData) opt.body = b;
+      else if (b) { opt.headers = { 'Content-Type': 'application/json' }; opt.body = JSON.stringify(b); }
+      const r = await fetch(u, opt);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
+      return j;
+    }
+    function say(text, kind) { msg.className = kind || ''; msg.textContent = text || ''; }
+    function showPreview(src) {
+      if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = ''; }
+      if (src && String(src).startsWith('blob:')) blobUrl = src;
+      if (!src) { preview.hidden = true; preview.removeAttribute('src'); return; }
+      preview.src = src; preview.hidden = false;
+    }
+    function resetForm() {
+      editing = null;
+      form.reset();
+      document.getElementById('form-title').textContent = 'Add a product';
+      document.getElementById('save-product').textContent = 'Add product';
+      cancelBtn.hidden = true;
+      showPreview('');
+    }
+    function startEdit(p) {
+      editing = p.id;
+      form.name.value = p.name || '';
+      form.description.value = p.description || '';
+      form.price.value = p.price;
+      form.stock.value = p.stock;
+      form.printType.value = p.printType === 'Resin' ? 'Resin' : 'FDM';
+      form.sample.checked = !!p.sample;
+      form.photo.value = '';
+      document.getElementById('form-title').textContent = 'Edit product';
+      document.getElementById('save-product').textContent = 'Save changes';
+      cancelBtn.hidden = false;
+      say('');
+      showPreview(p.photo ? '/img/p/' + p.id + '-thumb.webp?v=' + (p.photoRev || 1) : '');
+      form.scrollIntoView({ block: 'start' });
+      form.name.focus();
+    }
+    function renderProducts() {
+      listEl.innerHTML = products.map(p => `<article class="pcard" data-id="${p.id}">
+        ${p.photo ? `<img class="shot" src="/img/p/${p.id}-thumb.webp?v=${p.photoRev || 1}" alt="">` : ''}
+        ${p.hidden ? '<div class="hidden-flag">Hidden from the shop</div>' : ''}
+        <h3>${esc(p.name)}</h3>
+        <p>${esc(p.description || '')}</p>
+        <p><span class="price">${gbp.format(p.price)}</span> · ${esc(p.printType || 'FDM')} · ${p.stock} in stock${p.sample ? ' · Sample' : ''}</p>
+        <div class="prow">
+          <button class="btn" type="button" data-edit>Edit</button>
+          <button class="btn btn-ghost" type="button" data-hide>${p.hidden ? 'Show in shop' : 'Hide from shop'}</button>
+          <button class="btn" type="button" data-del style="background:#a3331f">Delete</button>
+        </div>
+      </article>`).join('') || '<p class="muted">No products yet. Add one above.</p>';
+    }
+    async function load() {
+      const d = await api('/api/admin/data');
+      products = d.products;
+      renderProducts();
+      const addr = o => { const s = o.shipping; if (!s) return '—'; const a = s.address || {}; return [s.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).map(esc).join('<br>'); };
+      const badge = o => { const s = o.status || 'demo'; return `<span class="status status-${esc(s)}">${esc(s)}</span>` + (o.sentAt ? `<br><small>${new Date(o.sentAt).toLocaleDateString('en-GB')}</small>` : '') + (o.note ? `<br><small>${esc(o.note)}</small>` : ''); };
+      const show = document.getElementById('showall');
+      const orders = d.orders.slice().reverse().filter(o => show.checked || ['paid', 'sent', 'awaiting_payment'].includes(o.status));
+      document.getElementById('orders').innerHTML = orders.map(o => `<tr data-order="${esc(o.id)}"><td>${esc(o.id)}</td><td>${new Date(o.paidAt || o.createdAt).toLocaleString('en-GB')}</td><td>${badge(o)}</td><td>${esc(o.name || '')}<br>${esc(o.email || '')}</td><td>${addr(o)}</td><td>${o.items.map(i => esc(i.qty + '× ' + i.name)).join('<br>')}</td><td>${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}${o.postage != null ? `<br><small>${o.postage ? 'incl. ' + gbp.format(o.postage) + ' postage' : 'free postage'}</small>` : ''}</td><td>${o.status === 'paid' ? '<button class="btn small" data-sent>Mark sent</button>' : o.status === 'sent' ? '<button class="btn small btn-ghost" data-unsent>Undo</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8">No paid orders yet.</td></tr>';
+    }
+    form.photo.addEventListener('change', () => {
+      const f = form.photo.files && form.photo.files[0];
+      showPreview(f ? URL.createObjectURL(f) : (editing ? preview.src : ''));
+    });
+    cancelBtn.addEventListener('click', () => { resetForm(); say(''); });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const file = fd.get('photo');
+      if (!(file instanceof File) || !file.size) fd.delete('photo');
+      const btn = document.getElementById('save-product');
+      btn.disabled = true;
+      say(editing ? 'Saving…' : 'Adding…');
+      try {
+        if (editing) await api('/api/admin/products/' + editing, 'PUT', fd);
+        else await api('/api/admin/products', 'POST', fd);
+        say(editing ? 'Saved.' : 'Added to the shop.', 'ok');
+        resetForm();
+        await load();
+      } catch (err) { say(err.message, 'err'); }
+      btn.disabled = false;
+    });
+    document.addEventListener('click', async e => {
+      const orderRow = e.target.closest('tr[data-order]');
+      if (orderRow && (e.target.hasAttribute('data-sent') || e.target.hasAttribute('data-unsent'))) {
+        try { await api('/api/admin/orders/' + orderRow.dataset.order + '/sent', 'POST', { sent: e.target.hasAttribute('data-sent') }); await load(); }
+        catch (err) { alert(err.message); }
+        return;
+      }
+      const card = e.target.closest('.pcard');
+      if (!card) return;
+      const id = Number(card.dataset.id);
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      if (e.target.hasAttribute('data-edit')) { startEdit(p); return; }
+      if (e.target.hasAttribute('data-hide')) {
+        try { await api('/api/admin/products/' + id, 'PUT', { hidden: !p.hidden }); await load(); }
+        catch (err) { alert(err.message); }
+        return;
+      }
+      if (e.target.hasAttribute('data-del')) {
+        if (!confirm('Delete “' + p.name + '”? It will disappear from the shop. This cannot be undone.')) return;
+        try {
+          await api('/api/admin/products/' + id, 'DELETE');
+          if (editing === id) resetForm();
+          say('Deleted.', 'ok');
+          await load();
+        } catch (err) { say(err.message, 'err'); }
+      }
+    });
+    load().catch(err => say(err.message, 'err'));
+  </script>
+</body>
+</html>
