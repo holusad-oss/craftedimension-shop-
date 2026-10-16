@@ -310,8 +310,9 @@ function handleEvent(event) {
 
 const page = (title, body) => `<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Craftedimension</title>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="stylesheet" href="/styles.css"></head><body><header class="site-header"><a class="logo" href="/"><img src="/img/logo-full-dark.svg" alt="Craftedimension" height="30"></a><nav aria-label="Primary"><a href="/#products">Shop</a></nav></header>
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:title" content="${escH(title)} — Craftedimension"><meta property="og:description" content="Handcrafted 3D printed products from Craftedimension."><meta property="og:image" content="https://craftedimension-shop.onrender.com/img/og-image.jpg"><meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/styles.css"></head><body><header class="site-header"><a class="logo" href="/"><img src="/img/logo-user.png" alt="Crafted.i.mentions" width="800" height="446"></a><nav aria-label="Primary"><a href="/#products">Shop</a></nav></header>
 <main class="checkout-result">${body}</main></body></html>`;
 const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
 const gbpFmt = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
