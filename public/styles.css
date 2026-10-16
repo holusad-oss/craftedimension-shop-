@@ -181,13 +181,14 @@ hr.divider {
   min-width: 0;
   max-width: 36rem;
   margin: 0 2rem 0.5rem 0;
+  padding: 0.7rem;
+  background: #0b0909;
+  border: 1px solid rgba(176, 141, 87, 0.75);
+  border-radius: 12px;
 }
 
-.hero-crest picture { display: block; }
-
-.hero img.engraving {
+.hero-crest img {
   display: block;
-  mix-blend-mode: multiply;
   width: 100%;
   height: auto;
 }
