@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Craftedimension</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<style>table{width:100%;border-collapse:collapse;font-size:.9rem}td,th{padding:.45rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}td input{padding:.4rem .5rem}.wrap{overflow-x:auto}h2{font-family:var(--display)}select{padding:.45rem .6rem;border:1px solid var(--line);border-radius:10px;background:var(--card);font:inherit}</style></head>
+<body><header class="site-header"><a class="logo" href="/">Craftedimension</a><nav><a href="/">View shop</a></nav></header>
+<main><h1 style="font-family:var(--display)">Shop admin</h1><p class="demo-note">Demo admin. Payments aren't connected; orders are test orders.</p>
+<h2>Products</h2><div class="wrap"><table><thead><tr><th>Name</th><th>Description</th><th>Price £</th><th>Stock</th><th>Type</th><th>Sample</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<h2>Add product</h2><form id="add" class="contact-form"><label>Name<input name="name" required></label><label>Description<input name="description"></label><label>Price (£)<input name="price" type="number" step="0.01" min="0" required></label><label>Stock<input name="stock" type="number" min="0" required></label><label>Print type<select name="printType"><option>FDM</option><option>Resin</option></select></label><button class="btn">Add product</button></form>
+<h2>Orders</h2><div class="wrap"><table><thead><tr><th>Order</th><th>When</th><th>Customer</th><th>Items</th><th>Total</th></tr></thead><tbody id="orders"></tbody></table></div></main>
+<script>
+const gbp=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'});const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+async function api(u,m='GET',b){const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b&&JSON.stringify(b)});return r.json();}
+async function load(){const d=await api('/api/admin/data');
+rows.innerHTML=d.products.map(p=>`<tr data-id="${p.id}"><td><input name="name" value="${esc(p.name)}"></td><td><input name="description" value="${esc(p.description)}"></td><td><input name="price" type="number" step="0.01" value="${p.price}" style="width:6rem"></td><td><input name="stock" type="number" min="0" value="${p.stock}" style="width:5rem"></td><td><select name="printType"><option ${p.printType!=='Resin'?'selected':''}>FDM</option><option ${p.printType==='Resin'?'selected':''}>Resin</option></select></td><td><input name="sample" type="checkbox" ${p.sample?'checked':''} style="width:auto"></td><td><button class="btn small" data-save>Save</button> <button class="btn small" data-del style="background:#a3331f">Delete</button></td></tr>`).join('');
+orders.innerHTML=d.orders.slice().reverse().map(o=>`<tr><td>${o.id}</td><td>${new Date(o.createdAt).toLocaleString('en-GB')}</td><td>${esc(o.name)}<br>${esc(o.email)}</td><td>${o.items.map(i=>esc(i.qty+'× '+i.name)).join('<br>')}</td><td>${gbp.format(o.total)}</td></tr>`).join('')||'<tr><td colspan=5>No orders yet.</td></tr>';}
+document.addEventListener('click',async e=>{const tr=e.target.closest('tr[data-id]');if(!tr)return;const id=tr.dataset.id;
+if(e.target.hasAttribute('data-save')){const b={};tr.querySelectorAll('input,select').forEach(i=>b[i.name]=i.type==='checkbox'?i.checked:i.value);await api('/api/admin/products/'+id,'PUT',b);load();}
+if(e.target.hasAttribute('data-del')&&confirm('Delete this product?')){await api('/api/admin/products/'+id,'DELETE');load();}});
+add.addEventListener('submit',async e=>{e.preventDefault();await api('/api/admin/products','POST',Object.fromEntries(new FormData(add)));add.reset();load();});load();
+</script></body></html>

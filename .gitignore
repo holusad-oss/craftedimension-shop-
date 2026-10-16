@@ -1,0 +1,8 @@
+node_modules/
+data/db.json
+data/db.json.tmp
+.admin_pw
+*.log
+tunnel.log
+shop.png
+.env

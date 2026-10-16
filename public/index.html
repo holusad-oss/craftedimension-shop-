@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Craftedimension — 3D Printed Products</title>
+  <meta name="description" content="Handcrafted 3D printed products from Craftedimension." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="#top">Craftedimension</a>
+    <nav aria-label="Primary">
+      <a href="#products">Shop</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+      <a href="#cart" class="cart-link">Basket (<span id="cart-count">0</span>)</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="eyebrow">FDM &amp; resin 3D prints · Made to order</p>
+      <h1>Objects with dimension</h1>
+      <p class="lede">Physical prints designed with care — from functional pieces to decorative forms. The shop grows with each new model.</p>
+      <a class="btn" href="#products">Browse the shop</a>
+    </section>
+
+    <section id="products" class="products">
+      <div class="section-head">
+        <h2>Products</h2>
+        <p><span class="badge">Sample data</span> These are sample products to try the shop — real listings will replace them.</p>
+      </div>
+      <div class="chips" role="group" aria-label="Filter by print type"><button class="chip active" data-filter="All">All</button><button class="chip" data-filter="FDM">FDM</button><button class="chip" data-filter="Resin">Resin</button></div>
+      <div class="grid" id="grid"><p class="muted">Loading products…</p></div>
+    </section>
+
+    <section id="cart" class="cart">
+      <div class="section-head">
+        <h2>Your basket</h2>
+        <p class="demo-note"><strong>Demo checkout:</strong> payments aren't connected yet. No card is taken and nothing will be shipped — placing an order just reserves stock so you can test the shop.</p>
+      </div>
+      <div id="cart-lines"><p class="muted">Your basket is empty.</p></div>
+      <form id="checkout" class="contact-form">
+        <label>Name <input type="text" name="name" required autocomplete="name" /></label>
+        <label>Email <input type="email" name="email" required autocomplete="email" /></label>
+        <button class="btn" type="submit">Place demo order</button>
+        <p id="checkout-msg" role="status"></p>
+      </form>
+    </section>
+
+    <section id="about" class="about">
+      <h2>About</h2>
+      <p>Craftedimension is a shop for physical 3D printed products — FDM and resin pieces finished and ready for everyday use. More detail here once the brand voice is locked in.</p>
+    </section>
+
+    <section id="contact" class="contact">
+      <div class="section-head">
+        <h2>Contact</h2>
+        <p>Questions about a print, a custom size, or an order? Get in touch.</p>
+      </div>
+      <form class="contact-form" action="#" method="post" onsubmit="event.preventDefault(); alert('Contact form is a placeholder — add your email or form service when you are ready.');">
+        <label>
+          Name
+          <input type="text" name="name" required autocomplete="name" />
+        </label>
+        <label>
+          Email
+          <input type="email" name="email" required autocomplete="email" />
+        </label>
+        <label>
+          Message
+          <textarea name="message" rows="5" required></textarea>
+        </label>
+        <button class="btn" type="submit">Send message</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Craftedimension</span>
+    <span class="note">Demo shop · payments not connected</span>
+  </footer>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+  <script src="shop.js"></script>
+</body>
+</html>

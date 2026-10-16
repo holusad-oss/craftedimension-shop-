@@ -1,0 +1,66 @@
+[
+  {
+    "name": "Hex Planter (Sample)",
+    "description": "Geometric desk planter with drainage tray. PLA, 10 cm.",
+    "price": 14,
+    "stock": 10,
+    "gradient": 0,
+    "printType": "FDM"
+  },
+  {
+    "name": "Cable Tidy Set (Sample)",
+    "description": "Pack of 6 clip-on cable organisers. PETG.",
+    "price": 6.5,
+    "stock": 20,
+    "gradient": 1,
+    "printType": "FDM"
+  },
+  {
+    "name": "Lithophane Lamp (Sample)",
+    "description": "Custom photo lithophane with LED base.",
+    "price": 32,
+    "stock": 4,
+    "gradient": 2,
+    "printType": "FDM"
+  },
+  {
+    "name": "Articulated Dragon (Sample)",
+    "description": "Print-in-place flexible dragon, 30 cm.",
+    "price": 18,
+    "stock": 8,
+    "gradient": 0,
+    "printType": "FDM"
+  },
+  {
+    "name": "Headphone Stand (Sample)",
+    "description": "Weighted stand with cable hook. Matte black PLA.",
+    "price": 22,
+    "stock": 6,
+    "gradient": 1,
+    "printType": "FDM"
+  },
+  {
+    "name": "Miniature Knight Figure (Sample)",
+    "description": "32 mm tabletop miniature, unpainted. High-detail resin.",
+    "price": 9,
+    "stock": 12,
+    "gradient": 2,
+    "printType": "Resin"
+  },
+  {
+    "name": "Leaf Jewellery Dish (Sample)",
+    "description": "Fine-detail trinket dish with leaf-vein texture. 9 cm.",
+    "price": 16,
+    "stock": 5,
+    "gradient": 0,
+    "printType": "Resin"
+  },
+  {
+    "name": "Mini Bust Ornament (Sample)",
+    "description": "Classical bust, 6 cm, stone-effect finish.",
+    "price": 12.5,
+    "stock": 3,
+    "gradient": 1,
+    "printType": "Resin"
+  }
+]
