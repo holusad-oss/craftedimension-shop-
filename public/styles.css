@@ -89,9 +89,9 @@ h3 { font-size: 1.375rem; }
 
 .logo img {
   display: block;
-  width: auto;
-  height: 64px;
-  max-width: 100%;
+  width: 220px;
+  max-width: calc(100vw - 32px);
+  height: auto;
   object-fit: contain;
   object-position: center;
   color: var(--cream);
@@ -100,7 +100,10 @@ h3 { font-size: 1.375rem; }
 }
 
 @media (min-width: 601px) {
-  .logo img { height: 80px; }
+  .logo img {
+    width: 260px;
+    max-width: 100%;
+  }
 }
 
 @media (min-width: 901px) {
@@ -111,7 +114,7 @@ h3 { font-size: 1.375rem; }
     margin: 0 1.25rem 0 0;
   }
   .logo img {
-    height: 96px;
+    width: 320px;
     max-width: none;
     object-position: left center;
   }
