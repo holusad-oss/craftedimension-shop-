@@ -147,6 +147,13 @@ function migrateProduct(p) {
     if (prev.colour && p.colour === prev.colour) { p.colour = next.colour; changed = true; }
     if (prev.care_notes && p.care_notes === prev.care_notes) { p.care_notes = next.care_notes; changed = true; }
   }
+  const images = normaliseImages(p.images, p.photo);
+  if (!Array.isArray(p.images) || images.length !== p.images.length || images.some((id, i) => id !== p.images[i])) {
+    p.images = images;
+    changed = true;
+  }
+  const hasPhoto = images.length > 0;
+  if (!!p.photo !== hasPhoto) { p.photo = hasPhoto; changed = true; }
   return changed;
 }
 
@@ -178,6 +185,28 @@ function imageId(id) {
   if (!Number.isInteger(n) || n < 1) return null;
   return n;
 }
+function imageSlot(slot) {
+  const s = String(slot || '');
+  if (s === '0' || /^[a-f0-9]{8}$/.test(s)) return s;
+  return null;
+}
+function normaliseImages(list, photo) {
+  const out = [];
+  const src = Array.isArray(list) ? list : (photo ? ['0'] : []);
+  for (const item of src) {
+    const slot = imageSlot(item);
+    if (slot && !out.includes(slot)) out.push(slot);
+    if (out.length === 8) break;
+  }
+  return out;
+}
+function imageFiles(id, slot) {
+  const n = imageId(id);
+  const s = imageSlot(slot);
+  if (!n || !s) return null;
+  const stem = path.join(UPLOAD_DIR, s === '0' ? String(n) : n + '-' + s);
+  return { full: stem + '.webp', thumb: stem + '-thumb.webp' };
+}
 
 function customId(id) {
   const s = String(id || '').toLowerCase();
@@ -197,29 +226,34 @@ class JsonStore {
   write(d) { const t = DB_FILE + '.tmp'; fs.writeFileSync(t, JSON.stringify(d, null, 2)); fs.renameSync(t, DB_FILE); }
   save(d) { this.write(d); return Promise.resolve(); }
   flush() { return Promise.resolve(); }
-  async saveImage(id, full, thumb) {
-    const n = imageId(id);
-    if (!n) throw new Error('Bad product id');
+  async saveImage(id, full, thumb, slot) {
+    const files = imageFiles(id, slot || '0');
+    if (!files) throw new Error('Bad product id');
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const fullPath = path.join(UPLOAD_DIR, n + '.webp');
-    const thumbPath = path.join(UPLOAD_DIR, n + '-thumb.webp');
-    fs.writeFileSync(fullPath + '.tmp', full); fs.renameSync(fullPath + '.tmp', fullPath);
-    fs.writeFileSync(thumbPath + '.tmp', thumb); fs.renameSync(thumbPath + '.tmp', thumbPath);
+    fs.writeFileSync(files.full + '.tmp', full); fs.renameSync(files.full + '.tmp', files.full);
+    fs.writeFileSync(files.thumb + '.tmp', thumb); fs.renameSync(files.thumb + '.tmp', files.thumb);
   }
-  async readImage(id, kind) {
-    const n = imageId(id);
-    if (!n) return null;
-    const file = path.join(UPLOAD_DIR, n + (kind === 'thumb' ? '-thumb' : '') + '.webp');
+  async readImage(id, kind, slot) {
+    const files = imageFiles(id, slot || '0');
+    if (!files) return null;
+    const file = kind === 'thumb' ? files.thumb : files.full;
     if (!fs.existsSync(file)) return null;
     const st = fs.statSync(file);
     return { buf: fs.readFileSync(file), updated: st.mtime };
   }
-  async deleteImage(id) {
+  async deleteImage(id, slot) {
     const n = imageId(id);
     if (!n) return;
-    for (const name of [n + '.webp', n + '-thumb.webp']) {
-      const file = path.join(UPLOAD_DIR, name);
-      if (fs.existsSync(file)) fs.unlinkSync(file);
+    if (slot) {
+      const files = imageFiles(id, slot);
+      if (!files) return;
+      for (const file of [files.full, files.thumb]) if (fs.existsSync(file)) fs.unlinkSync(file);
+      return;
+    }
+    if (!fs.existsSync(UPLOAD_DIR)) return;
+    const re = new RegExp('^' + n + '(?:-[a-f0-9]{8})?(?:-thumb)?\\.webp$');
+    for (const name of fs.readdirSync(UPLOAD_DIR)) {
+      if (re.test(name)) fs.unlinkSync(path.join(UPLOAD_DIR, name));
     }
   }
   async saveCustomFile(id, filename, mime, buf) {
@@ -258,9 +292,17 @@ class PgStore {
       CREATE TABLE IF NOT EXISTS meta (key text PRIMARY KEY, value jsonb NOT NULL);
       CREATE TABLE IF NOT EXISTS product_images (
         product_id integer PRIMARY KEY,
-        full bytea NOT NULL,
+        "full" bytea NOT NULL,
         thumb bytea NOT NULL,
         updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS product_gallery (
+        product_id integer NOT NULL,
+        slot text NOT NULL,
+        "full" bytea NOT NULL,
+        thumb bytea NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (product_id, slot)
       );
       CREATE TABLE IF NOT EXISTS custom_requests (
         id text PRIMARY KEY,
@@ -278,6 +320,11 @@ class PgStore {
         created_at timestamptz NOT NULL,
         data jsonb NOT NULL
       );`);
+    await this.pool.query(
+      `INSERT INTO product_gallery (product_id, slot, "full", thumb, updated_at)
+       SELECT product_id, '0', "full", thumb, updated_at FROM product_images
+       ON CONFLICT (product_id, slot) DO NOTHING`
+    );
     const has = (await this.pool.query('SELECT 1 FROM meta WHERE key = $1', ['nextId'])).rowCount;
     if (!has) {
       const { state, from } = seedState();
@@ -334,26 +381,46 @@ class PgStore {
     return this.pending;
   }
   flush() { return this.chain; }
-  async saveImage(id, full, thumb) {
+  async saveImage(id, full, thumb, slot) {
     const n = imageId(id);
-    if (!n) throw new Error('Bad product id');
+    const s = imageSlot(slot || '0');
+    if (!n || !s) throw new Error('Bad product id');
     await this.pool.query(
-      `INSERT INTO product_images (product_id, full, thumb) VALUES ($1, $2, $3)
-       ON CONFLICT (product_id) DO UPDATE SET full = EXCLUDED.full, thumb = EXCLUDED.thumb, updated_at = now()`,
-      [n, full, thumb]
+      `INSERT INTO product_gallery (product_id, slot, "full", thumb) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (product_id, slot) DO UPDATE SET "full" = EXCLUDED."full", thumb = EXCLUDED.thumb, updated_at = now()`,
+      [n, s, full, thumb]
     );
+    if (s === '0') {
+      await this.pool.query(
+        `INSERT INTO product_images (product_id, "full", thumb) VALUES ($1, $2, $3)
+         ON CONFLICT (product_id) DO UPDATE SET "full" = EXCLUDED."full", thumb = EXCLUDED.thumb, updated_at = now()`,
+        [n, full, thumb]
+      );
+    }
   }
-  async readImage(id, kind) {
+  async readImage(id, kind, slot) {
     const n = imageId(id);
-    if (!n) return null;
-    const col = kind === 'thumb' ? 'thumb' : 'full';
-    const r = await this.pool.query(`SELECT ${col} AS data, updated_at FROM product_images WHERE product_id = $1`, [n]);
-    if (!r.rowCount) return null;
-    return { buf: r.rows[0].data, updated: r.rows[0].updated_at };
+    const s = imageSlot(slot || '0');
+    if (!n || !s) return null;
+    const col = kind === 'thumb' ? 'thumb' : '"full"';
+    const r = await this.pool.query(`SELECT ${col} AS data, updated_at FROM product_gallery WHERE product_id = $1 AND slot = $2`, [n, s]);
+    if (r.rowCount) return { buf: r.rows[0].data, updated: r.rows[0].updated_at };
+    if (s !== '0') return null;
+    const legacy = await this.pool.query(`SELECT ${col} AS data, updated_at FROM product_images WHERE product_id = $1`, [n]);
+    if (!legacy.rowCount) return null;
+    return { buf: legacy.rows[0].data, updated: legacy.rows[0].updated_at };
   }
-  async deleteImage(id) {
+  async deleteImage(id, slot) {
     const n = imageId(id);
     if (!n) return;
+    if (slot) {
+      const s = imageSlot(slot);
+      if (!s) return;
+      await this.pool.query('DELETE FROM product_gallery WHERE product_id = $1 AND slot = $2', [n, s]);
+      if (s === '0') await this.pool.query('DELETE FROM product_images WHERE product_id = $1', [n]);
+      return;
+    }
+    await this.pool.query('DELETE FROM product_gallery WHERE product_id = $1', [n]);
     await this.pool.query('DELETE FROM product_images WHERE product_id = $1', [n]);
   }
   async saveCustomFile(id, filename, mime, buf) {

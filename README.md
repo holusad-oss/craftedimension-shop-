@@ -26,7 +26,7 @@ If `ADMIN_PASSWORD` is not set, a random password is generated and printed to th
 ## API
 - `GET /api/products[?type=fdm|resin]` — response includes `Access-Control-Allow-Origin: *`. Other public `GET /api/*` routes do too. Admin routes do not.
 - `POST /api/checkout` `{ name, email, items: [{ id, qty }] }` – atomic; 409 if not enough stock
-- Admin (HTTP Basic, any username + ADMIN_PASSWORD): `GET /api/admin/data`, `POST/PUT/DELETE /api/admin/products[/:id]`. Product photos are uploaded on those create and edit requests (multipart, 8MB). `hidden: true` keeps a product out of the shop.
+- Admin (HTTP Basic, any username + ADMIN_PASSWORD): `GET /api/admin/data`, `POST/PUT/DELETE /api/admin/products[/:id]`. Product photos are uploaded as repeated multipart file fields named `photos` (a single `photo` field still works). Up to 8 photos, 8MB each, 32MB per request. The first photo is the main one. On edit, `imageOrder` is the full order: existing image ids and `n:0`, `n:1`, … for the new files in that request. Ids left out are removed. `GET /api/products` still returns `image` and `thumb` for the main photo, plus `images: [{ url, thumb }]`. `hidden: true` keeps a product out of the shop.
 
 ## Mobile app
 The Crafted.i.mentions Android app is recognised when the `User-Agent` contains `CraftedimensionApp`, or when the request includes `X-Craftedimension-App: 1`. For those requests:
@@ -41,9 +41,9 @@ The storefront has no admin link of its own. The shop page in a normal browser i
 
 ## Storage
 
-Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`, `product_images`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
+Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`, `product_images`, `product_gallery`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
 
-Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). With `DATABASE_URL` the bytes live in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The shop serves them at `/img/p/<id>.webp`.
+Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). Each product keeps an ordered list of up to 8. With `DATABASE_URL` the bytes live in `product_gallery`, and a product's original single photo is also kept in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The main photo is served at `/img/p/<id>.webp`.
 
 Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. Contact messages (`POST /api/contact`) use the same honeypot and hourly limit and are stored with the shop data. Checkout is limited to 10 requests per 15 minutes per IP. Failed admin logins are limited to 10 per 15 minutes per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the message is written to the server log.
 

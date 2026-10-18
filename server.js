@@ -30,9 +30,11 @@ let db = null; // loaded in start()
 function save(d) { const p = store.save(d); p.catch(() => {}); return p; }
 
 const MAX_PHOTO = 8 * 1024 * 1024;
+const MAX_PHOTOS = 8;
+const MAX_PHOTO_REQUEST = 32 * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_PHOTO, files: 1 },
+  limits: { fileSize: MAX_PHOTO, files: MAX_PHOTOS },
   fileFilter(req, file, cb) {
     const type = String(file.mimetype || '').toLowerCase();
     const name = String(file.originalname || '').toLowerCase();
@@ -43,13 +45,25 @@ const upload = multer({
 function withPhoto(req, res, next) {
   const ct = req.headers['content-type'] || '';
   if (!ct.includes('multipart/form-data')) return next();
-  upload.single('photo')(req, res, err => {
-    if (!err) return next();
-    const tooBig = err.code === 'LIMIT_FILE_SIZE';
-    res.status(tooBig ? 413 : 400).json({
-      error: tooBig ? 'That photo is larger than 8MB. Please choose a smaller one.' : (err.message || 'Could not read that photo.'),
-    });
+  upload.fields([{ name: 'photos', maxCount: MAX_PHOTOS }, { name: 'photo', maxCount: 1 }])(req, res, err => {
+    if (err) {
+      const tooBig = err.code === 'LIMIT_FILE_SIZE';
+      const tooMany = err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE';
+      const status = tooBig ? 413 : 400;
+      const error = tooBig ? 'That photo is larger than 8MB. Please choose a smaller one.'
+        : tooMany ? 'You can add up to 8 photos.'
+        : (err.message || 'Could not read that photo.');
+      return res.status(status).json({ error });
+    }
+    const files = photoFiles(req);
+    const total = files.reduce((sum, file) => sum + (file.size || 0), 0);
+    if (total > MAX_PHOTO_REQUEST) return res.status(413).json({ error: 'Those photos are larger than 32MB together. Please choose smaller ones.' });
+    next();
   });
+}
+function photoFiles(req) {
+  const groups = req.files || {};
+  return [].concat(groups.photos || [], groups.photo || []);
 }
 async function makeWebp(buf) {
   const img = sharp(buf, { failOn: 'none', animated: false, limitInputPixels: 80e6 }).rotate();
@@ -177,10 +191,16 @@ const pub = p => {
     detail: p.detail || '', finish: p.finish || 'raw', care_notes: p.care_notes || '',
     lead_time_days: Array.isArray(p.lead_time_days) ? p.lead_time_days : [3, 7],
   };
-  if (p.photo) {
+  const keys = Array.isArray(p.images) ? p.images : [];
+  if (keys.length) {
     const v = p.photoRev || 1;
-    o.image = `/img/p/${p.id}.webp?v=${v}`;
-    o.thumb = `/img/p/${p.id}-thumb.webp?v=${v}`;
+    const shot = (key, index) => index === 0
+      ? { url: `/img/p/${p.id}.webp?v=${v}`, thumb: `/img/p/${p.id}-thumb.webp?v=${v}` }
+      : { url: `/img/p/${p.id}-${key}.webp?v=${v}`, thumb: `/img/p/${p.id}-${key}-thumb.webp?v=${v}` };
+    const main = shot(keys[0], 0);
+    o.image = main.url;
+    o.thumb = main.thumb;
+    o.images = keys.map((key, index) => shot(key, index));
   }
   return o;
 };
@@ -190,10 +210,15 @@ app.get('/api/products', (req, res) => {
   res.json(publicList().filter(p => !t || t === 'all' || (p.printType || 'FDM').toLowerCase() === t));
 });
 app.get('/img/p/:name', async (req, res) => {
-  const m = /^(\d+)(-thumb)?\.webp$/.exec(req.params.name);
+  const m = /^(\d+)(?:-([a-f0-9]{8}))?(-thumb)?\.webp$/.exec(req.params.name);
   if (!m) return res.status(404).type('text').send('Not found');
+  const id = Number(m[1]);
+  const product = db.products.find(p => p.id === id);
+  const keys = product && Array.isArray(product.images) ? product.images : [];
+  const slot = m[2] || keys[0] || '0';
+  if (m[2] && !keys.includes(m[2])) return res.status(404).type('text').send('Not found');
   let img;
-  try { img = await store.readImage(Number(m[1]), m[2] ? 'thumb' : 'full'); }
+  try { img = await store.readImage(id, m[3] ? 'thumb' : 'full', slot); }
   catch (e) { console.error('[img]', e.message); return res.status(500).type('text').send('Not found'); }
   if (!img) return res.status(404).type('text').send('Not found');
   if (!Buffer.isBuffer(img.buf)) img.buf = Buffer.from(img.buf);
@@ -405,16 +430,73 @@ function clean(b, base = {}, full) {
   delete p.photoFile;
   return p;
 }
-async function attachPhoto(p, file) {
-  if (!file) return null;
-  let images;
-  try { images = await makeWebp(file.buffer); }
-  catch { return photoError(); }
-  try { await store.saveImage(p.id, images.full, images.thumb); }
-  catch (e) { console.error('[img] save failed', e.message); return "Couldn't store that photo. Please try again."; }
-  p.photo = true;
-  p.photoRev = Date.now();
+function newImageKey(used) {
+  for (let i = 0; i < 8; i++) {
+    const key = crypto.randomBytes(4).toString('hex');
+    if (!used.has(key) && key !== '00000000') return key;
+  }
   return null;
+}
+// imageOrder is the full new order. Existing ids are kept as-is; n:0 refers to the first uploaded photos file.
+// Ids left out are removed. The first entry is the main photo. Omit imageOrder to keep the current order and append uploads.
+async function applyGallery(p, files, body) {
+  const incoming = files || [];
+  const current = Array.isArray(p.images) ? p.images.slice() : [];
+  const ordered = body && Object.prototype.hasOwnProperty.call(body, 'imageOrder');
+  if (!incoming.length && !ordered) {
+    p.images = current;
+    p.photo = current.length > 0;
+    return { error: null, added: [], removed: [] };
+  }
+  const plan = [];
+  const usedOld = new Set();
+  const usedNew = new Set();
+  if (ordered) {
+    const tokens = String(body.imageOrder || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const token of tokens) {
+      const added = /^n:(\d+)$/.exec(token);
+      if (added) {
+        const index = Number(added[1]);
+        if (!incoming[index] || usedNew.has(index)) return { error: 'One of the new photos could not be placed.', status: 400 };
+        usedNew.add(index);
+        plan.push({ upload: index });
+      } else {
+        if (!current.includes(token) || usedOld.has(token)) return { error: 'The photo order includes a photo that is not on this product.', status: 400 };
+        usedOld.add(token);
+        plan.push({ key: token });
+      }
+    }
+  } else {
+    current.forEach(key => plan.push({ key }));
+    incoming.forEach((_, index) => plan.push({ upload: index }));
+  }
+  if (plan.length > MAX_PHOTOS) return { error: 'You can add up to 8 photos.', status: 400 };
+  const encoded = new Map();
+  for (const index of new Set(plan.filter(item => item.upload != null).map(item => item.upload))) {
+    try { encoded.set(index, await makeWebp(incoming[index].buffer)); }
+    catch { return { error: photoError(), status: 400 }; }
+  }
+  const used = new Set(current);
+  const images = [];
+  const added = [];
+  for (const item of plan) {
+    if (item.key) { images.push(item.key); continue; }
+    const key = newImageKey(used);
+    if (!key) return { error: "Couldn't store that photo. Please try again.", status: 503 };
+    used.add(key);
+    try { await store.saveImage(p.id, encoded.get(item.upload).full, encoded.get(item.upload).thumb, key); }
+    catch (e) { console.error('[img] save failed', e.message); return { error: "Couldn't store that photo. Please try again.", status: 503, added }; }
+    added.push(key);
+    images.push(key);
+  }
+  const removed = current.filter(key => !images.includes(key));
+  p.images = images;
+  p.photo = images.length > 0;
+  if (added.length || removed.length || images.join() !== current.join()) p.photoRev = Date.now();
+  return { error: null, added, removed };
+}
+async function discardImages(productId, keys) {
+  for (const key of keys) await store.deleteImage(productId, key).catch(() => {});
 }
 app.post('/api/admin/products', auth, withPhoto, async (req, res) => {
   const body = req.body || {};
@@ -422,25 +504,46 @@ app.post('/api/admin/products', auth, withPhoto, async (req, res) => {
   const p = clean(body, {
     id: db.nextId++, price: 0, stock: 0, gradient: 0, description: '', sample: false, printType: 'FDM', hidden: false,
     material: 'PLA', colour: '', size_mm: { l: null, w: null, h: null }, detail: '0.2 mm layers', finish: 'raw', care_notes: '', lead_time_days: [3, 7],
+    images: [], photo: false,
   }, true);
-  const photoErr = await attachPhoto(p, req.file);
-  if (photoErr) { db.nextId--; return res.status(photoErr.indexOf('store') >= 0 ? 503 : 400).json({ error: photoErr }); }
+  const gallery = await applyGallery(p, photoFiles(req), body);
+  if (gallery.error) {
+    db.nextId--;
+    await discardImages(p.id, gallery.added || []);
+    return res.status(gallery.status || 400).json({ error: gallery.error });
+  }
   db.products.push(p);
   try { await save(db); }
-  catch { db.products.pop(); if (p.photo) await store.deleteImage(p.id).catch(() => {}); return res.status(503).json({ error: "Couldn't save that product. Please try again." }); }
+  catch {
+    db.products.pop();
+    await store.deleteImage(p.id).catch(() => {});
+    return res.status(503).json({ error: "Couldn't save that product. Please try again." });
+  }
+  await discardImages(p.id, gallery.removed);
   res.json(p);
 });
 app.put('/api/admin/products/:id', auth, withPhoto, async (req, res) => {
   const i = db.products.findIndex(p => p.id === Number(req.params.id));
   if (i < 0) return res.status(404).json({ error: 'Not found' });
   const multipart = (req.headers['content-type'] || '').includes('multipart/form-data');
-  const next = clean(req.body || {}, db.products[i], multipart);
+  const body = req.body || {};
+  // A photo-only update (imageOrder, no name) must not clear the sample flag.
+  const next = clean(body, db.products[i], multipart && body.name !== undefined);
   if (!String(next.name || '').trim()) return res.status(400).json({ error: 'Please enter a name.' });
-  const photoErr = await attachPhoto(next, req.file);
-  if (photoErr) return res.status(400).json({ error: photoErr });
+  const gallery = await applyGallery(next, photoFiles(req), multipart ? body : {});
+  if (gallery.error) {
+    await discardImages(next.id, gallery.added || []);
+    return res.status(gallery.status || 400).json({ error: gallery.error });
+  }
+  const previous = db.products[i];
   db.products[i] = next;
   try { await save(db); }
-  catch { return res.status(503).json({ error: "Couldn't save those changes. Please try again." }); }
+  catch {
+    db.products[i] = previous;
+    await discardImages(next.id, gallery.added || []);
+    return res.status(503).json({ error: "Couldn't save those changes. Please try again." });
+  }
+  await discardImages(next.id, gallery.removed);
   res.json(next);
 });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -27,8 +27,6 @@
     .admin-form .check, #showall-label { display: flex; align-items: center; min-height: 48px; font-weight: 600; }
     .admin-form .check input, #showall-label input { width: 1.4rem; height: 1.4rem; min-height: 0; margin: 0 0.7rem 0 0; }
     .hint { display: block; margin-top: 0.3rem; color: var(--muted); font-weight: 400; font-size: 1rem; }
-    #photo-preview { display: block; width: min(100%, 280px); height: auto; margin: 0 0 0.9rem; border: var(--hair); }
-    #photo-preview[hidden] { display: none; }
     #product-msg { margin: 0 0 0.8rem; font-weight: 600; }
     #product-msg.err { color: #8a3d16; }
     #product-msg.ok { color: var(--oxblood); }
@@ -39,10 +37,16 @@
     .pcard p { margin: 0 0 0.7rem; color: var(--muted); }
     .hidden-flag { display: inline-block; margin: 0 0 0.45rem; padding: 0.15rem 0.45rem; border: var(--hair); font-weight: 700; color: var(--oxblood); }
     .prow .btn { min-height: 48px; margin: 0 0.55rem 0.55rem 0; }
+    .photo-list { list-style: none; margin: 0 0 0.9rem; padding: 0; }
+    .photo-item { border: var(--hair); margin: 0 0 0.7rem; padding: 0.65rem; }
+    .photo-item img { display: block; width: 96px; height: 96px; object-fit: cover; margin: 0 0 0.45rem; background: var(--media); }
+    .photo-flag { margin: 0 0 0.35rem; font-weight: 700; }
+    .admin-form .photo-actions .btn { width: auto; min-height: 44px; margin: 0 0.4rem 0.4rem 0; }
     .size-fields { border: 0; margin: 0 0 0.95rem; padding: 0; }
     .size-fields legend { font-weight: 700; padding: 0; }
     @media (max-width: 640px) {
       .prow .btn { display: flex; width: 100%; margin-right: 0; }
+      .admin-form .photo-actions .btn { display: block; width: 100%; margin-right: 0; }
     }
   </style>
 </head>
@@ -99,11 +103,11 @@
       <label>Lead time, shortest (days) <input name="lead_min" type="number" inputmode="numeric" min="0" step="1" value="3" required></label>
       <label>Lead time, longest (days) <input name="lead_max" type="number" inputmode="numeric" min="0" step="1" value="7" required></label>
       <label class="check"><input type="checkbox" name="sample"> This is sample data</label>
-      <label>Photo
-        <input name="photo" type="file" accept="image/*">
-        <span class="hint">Take a photo or choose one from your phone. JPEG, PNG, WebP or HEIC, up to 8MB.</span>
+      <label>Photos
+        <input id="photo-input" type="file" accept="image/*" multiple>
+        <span class="hint">Choose up to 8 from your gallery. JPEG, PNG, WebP or HEIC, up to 8MB each and 32MB altogether. The first photo is the main one.</span>
       </label>
-      <img id="photo-preview" alt="Chosen photo" hidden>
+      <ul id="photo-list" class="photo-list"></ul>
       <button class="btn" type="submit" id="save-product">Add product</button>
       <button class="btn btn-ghost" type="button" id="cancel-edit" hidden>Cancel</button>
     </form>
@@ -130,11 +134,12 @@
     const form = document.getElementById('product-form');
     const msg = document.getElementById('product-msg');
     const listEl = document.getElementById('product-list');
-    const preview = document.getElementById('photo-preview');
+    const photoInput = document.getElementById('photo-input');
+    const photoList = document.getElementById('photo-list');
     const cancelBtn = document.getElementById('cancel-edit');
     let products = [];
     let editing = null;
-    let blobUrl = '';
+    let gallery = [];
 
     async function api(u, m, b) {
       const opt = { method: m || 'GET' };
@@ -146,11 +151,27 @@
       return j;
     }
     function say(text, kind) { msg.className = kind || ''; msg.textContent = text || ''; }
-    function showPreview(src) {
-      if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = ''; }
-      if (src && String(src).startsWith('blob:')) blobUrl = src;
-      if (!src) { preview.hidden = true; preview.removeAttribute('src'); return; }
-      preview.src = src; preview.hidden = false;
+    function thumbUrl(product, key) {
+      const v = product.photoRev || 1;
+      const main = product.images && product.images[0] === key;
+      return main ? '/img/p/' + product.id + '-thumb.webp?v=' + v : '/img/p/' + product.id + '-' + key + '-thumb.webp?v=' + v;
+    }
+    function renderGallery() {
+      photoList.innerHTML = gallery.map((item, index) => `<li class="photo-item">
+        ${index === 0 ? '<p class="photo-flag">Main photo</p>' : ''}
+        <img src="${esc(item.src)}" alt="Photo ${index + 1}">
+        <div class="photo-actions">
+          <button class="btn" type="button" data-photo-left ${index === 0 ? 'disabled' : ''}>Move left</button>
+          <button class="btn" type="button" data-photo-right ${index === gallery.length - 1 ? 'disabled' : ''}>Move right</button>
+          <button class="btn" type="button" data-photo-main ${index === 0 ? 'disabled' : ''}>Make main photo</button>
+          <button class="btn" type="button" data-photo-remove>Remove</button>
+        </div>
+      </li>`).join('') || '<li class="muted">No photos yet.</li>';
+    }
+    function clearGallery() {
+      gallery.forEach(item => { if (item.blob) URL.revokeObjectURL(item.blob); });
+      gallery = [];
+      renderGallery();
     }
     function resetForm() {
       editing = null;
@@ -158,7 +179,7 @@
       document.getElementById('form-title').textContent = 'Add a product';
       document.getElementById('save-product').textContent = 'Add product';
       cancelBtn.hidden = true;
-      showPreview('');
+      clearGallery();
     }
     function startEdit(p) {
       editing = p.id;
@@ -178,23 +199,25 @@
       form.lead_min.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[0] : 3;
       form.lead_max.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[1] : 7;
       form.sample.checked = !!p.sample;
-      form.photo.value = '';
+      photoInput.value = '';
       document.getElementById('form-title').textContent = 'Edit product';
       document.getElementById('save-product').textContent = 'Save changes';
       cancelBtn.hidden = false;
       say('');
-      showPreview(p.photo ? '/img/p/' + p.id + '-thumb.webp?v=' + (p.photoRev || 1) : '');
+      clearGallery();
+      gallery = (p.images || []).map(key => ({ key: key, src: thumbUrl(p, key) }));
+      renderGallery();
       form.scrollIntoView({ block: 'start' });
       form.name.focus();
     }
     function renderProducts() {
       listEl.innerHTML = products.map(p => `<article class="pcard" data-id="${p.id}">
-        ${p.photo ? `<img class="shot" src="/img/p/${p.id}-thumb.webp?v=${p.photoRev || 1}" alt="">` : ''}
+        ${p.images && p.images.length ? `<img class="shot" src="${esc(thumbUrl(p, p.images[0]))}" alt="">` : ''}
         ${p.hidden ? '<div class="hidden-flag">Hidden from the shop</div>' : ''}
         <h3>${esc(p.name)}</h3>
         <p>${esc(p.description || '')}</p>
         <p><span class="price">${gbp.format(p.price)}</span> · ${esc(p.printType || 'FDM')} · ${p.stock} in stock${p.sample ? ' · Sample' : ''}</p>
-        <p>${esc(p.material || '')}${p.colour ? ' · ' + esc(p.colour) : ''}${p.detail ? ' · ' + esc(p.detail) : ''}</p>
+        <p>${esc(p.material || '')}${p.colour ? ' · ' + esc(p.colour) : ''}${p.detail ? ' · ' + esc(p.detail) : ''}${p.images && p.images.length ? ' · ' + p.images.length + (p.images.length === 1 ? ' photo' : ' photos') : ''}</p>
         <div class="prow">
           <button class="btn" type="button" data-edit>Edit</button>
           <button class="btn btn-ghost" type="button" data-hide>${p.hidden ? 'Show in shop' : 'Hide from shop'}</button>
@@ -227,16 +250,49 @@
       const orders = d.orders.slice().reverse().filter(o => show.checked || ['paid', 'sent', 'awaiting_payment'].includes(o.status));
       document.getElementById('orders').innerHTML = orders.map(o => `<tr data-order="${esc(o.id)}"><td>${esc(o.id)}</td><td>${new Date(o.paidAt || o.createdAt).toLocaleString('en-GB')}</td><td>${badge(o)}</td><td>${esc(o.name || '')}<br>${esc(o.email || '')}</td><td>${addr(o)}</td><td>${o.items.map(i => esc(i.qty + '× ' + i.name)).join('<br>')}</td><td>${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}${o.postage != null ? `<br><small>${o.postage ? 'incl. ' + gbp.format(o.postage) + ' postage' : 'free postage'}</small>` : ''}</td><td>${o.status === 'paid' ? '<button class="btn small" data-sent>Mark sent</button>' : o.status === 'sent' ? '<button class="btn small btn-ghost" data-unsent>Undo</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8">No paid orders yet.</td></tr>';
     }
-    form.photo.addEventListener('change', () => {
-      const f = form.photo.files && form.photo.files[0];
-      showPreview(f ? URL.createObjectURL(f) : (editing ? preview.src : ''));
+    photoInput.addEventListener('change', () => {
+      const chosen = Array.from(photoInput.files || []);
+      photoInput.value = '';
+      if (!chosen.length) return;
+      if (gallery.length + chosen.length > 8) { say('You can add up to 8 photos.', 'err'); return; }
+      chosen.forEach(file => {
+        const blob = URL.createObjectURL(file);
+        gallery.push({ file: file, src: blob, blob: blob });
+      });
+      renderGallery();
+    });
+    photoList.addEventListener('click', e => {
+      const item = e.target.closest('.photo-item');
+      if (!item) return;
+      const index = Array.prototype.indexOf.call(photoList.children, item);
+      if (index < 0) return;
+      if (e.target.hasAttribute('data-photo-remove')) {
+        const gone = gallery.splice(index, 1)[0];
+        if (gone && gone.blob) URL.revokeObjectURL(gone.blob);
+      } else if (e.target.hasAttribute('data-photo-left') && index > 0) {
+        const swap = gallery[index - 1];
+        gallery[index - 1] = gallery[index];
+        gallery[index] = swap;
+      } else if (e.target.hasAttribute('data-photo-right') && index < gallery.length - 1) {
+        const swap = gallery[index + 1];
+        gallery[index + 1] = gallery[index];
+        gallery[index] = swap;
+      } else if (e.target.hasAttribute('data-photo-main') && index > 0) {
+        const [picked] = gallery.splice(index, 1);
+        gallery.unshift(picked);
+      } else return;
+      renderGallery();
     });
     cancelBtn.addEventListener('click', () => { resetForm(); say(''); });
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const fd = new FormData(form);
-      const file = fd.get('photo');
-      if (!(file instanceof File) || !file.size) fd.delete('photo');
+      let added = 0;
+      const order = gallery.map(item => {
+        if (item.file) { fd.append('photos', item.file); return 'n:' + (added++); }
+        return item.key;
+      });
+      fd.set('imageOrder', order.join(','));
       const btn = document.getElementById('save-product');
       btn.disabled = true;
       say(editing ? 'Saving…' : 'Adding…');

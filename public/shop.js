@@ -1,7 +1,7 @@
 document.getElementById('year').textContent = new Date().getFullYear();
 const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 const CUBE = '<svg class="cube-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path fill="#a94f20" d="M10 18 32 30 32 54 10 42Z"/><path fill="#c4622d" d="M54 18 32 30 32 54 54 42Z"/><path fill="#c4622d" d="M32 6 46.7 14 17.3 14Z"/><path fill="#e6a94a" d="M17.3 14 46.7 14 54 18 46.7 22 17.3 22 10 18Z"/><path fill="#c4622d" d="M17.3 22 46.7 22 32 30Z"/></svg>';
-let products = [], cart = {}, filter = 'All';
+let products = [], cart = {}, filter = 'All', shownSlide = {};
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 function leadText(p) {
@@ -28,7 +28,15 @@ function render() {
   document.getElementById('grid').innerHTML = products.filter(p => filter === 'All' || p.printType === filter).map(p => {
     const inCart = cart[p.id] || 0, avail = p.stock - inCart;
     const st = stockText(p);
-    const media = p.image ? `<img src="${esc(p.thumb || p.image)}" alt="${esc(p.name)}">` : CUBE;
+    const shots = Array.isArray(p.images) && p.images.length ? p.images : (p.image ? [{ url: p.image, thumb: p.thumb || p.image }] : []);
+    const slide = shots.length ? Math.min(shownSlide[p.id] || 0, shots.length - 1) : 0;
+    shownSlide[p.id] = slide;
+    const media = shots.length
+      ? `<img src="${esc(shots[slide].thumb || shots[slide].url)}" alt="${esc(p.name)} photo ${slide + 1}" data-slide="${slide}">`
+        + (shots.length > 1
+          ? `<button type="button" class="photo-arrow photo-prev" data-photo="prev" data-id="${p.id}" aria-label="Previous photo">‹</button><button type="button" class="photo-arrow photo-next" data-photo="next" data-id="${p.id}" aria-label="Next photo">›</button><span class="photo-count">${slide + 1} / ${shots.length}</span>`
+          : '')
+      : CUBE;
     const meta = [p.material, p.colour, sizeText(p)].filter(Boolean).map(esc).join(' \u00b7 ');
     const specs = `<details class="specs"><summary>Print details</summary>
       <dl class="spec">
@@ -43,7 +51,7 @@ function render() {
       <div class="policy-draft"><strong>Draft for the owner to confirm.</strong> Custom and made-to-order items are exempt from the 14-day cancellation right unless faulty; standard items can be returned within 14 days.</div>
     </details>`;
     return `<article class="card">
-      <div class="card-media">${media}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
+      <div class="card-media" data-id="${p.id}">${media}<span class="type type-${p.printType.toLowerCase()}">${esc(p.printType)}</span>${p.sample ? '<span class="badge">Sample</span>' : ''}</div>
       <h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
       ${meta ? `<p class="meta-line">${meta}</p>` : ''}
       <p class="lead-line">${esc(leadText(p))}</p>
@@ -74,16 +82,98 @@ function setProducts(list) {
   products = list;
   for (const id in cart) { const p = products.find(x => x.id == id); cart[id] = p ? Math.min(cart[id], p.stock) : 0; }
   render();
+  if (viewerId != null && viewer && !viewer.hidden) openViewer(viewerId);
 }
 async function refresh() { try { setProducts(await (await fetch('/api/products')).json()); } catch {} }
 
+function shotsOf(p) {
+  if (!p) return [];
+  if (Array.isArray(p.images) && p.images.length) return p.images;
+  if (p.image) return [{ url: p.image, thumb: p.thumb || p.image }];
+  return [];
+}
+function stepPhoto(id, dir) {
+  const p = products.find(x => String(x.id) === String(id));
+  const shots = shotsOf(p);
+  if (shots.length < 2) return;
+  shownSlide[p.id] = ((shownSlide[p.id] || 0) + dir + shots.length) % shots.length;
+  render();
+}
+const viewer = document.getElementById('viewer');
+const viewerImg = document.getElementById('viewer-img');
+let viewerId = null;
+let viewerPushed = false;
+function openViewer(id, slide) {
+  const p = products.find(x => String(x.id) === String(id));
+  const shots = shotsOf(p);
+  if (!p || !shots.length || !viewer) return;
+  const wanted = Number.isInteger(slide) ? slide : (shownSlide[p.id] || 0);
+  const index = Math.min(Math.max(wanted, 0), shots.length - 1);
+  shownSlide[p.id] = index;
+  viewerImg.src = shots[index].url;
+  viewerImg.alt = p.name + ' photo ' + (index + 1);
+  const count = document.getElementById('viewer-count');
+  if (count) count.textContent = (index + 1) + ' / ' + shots.length;
+  const single = shots.length < 2;
+  document.getElementById('viewer-prev').hidden = single;
+  document.getElementById('viewer-next').hidden = single;
+  viewer.hidden = false;
+  viewerId = p.id;
+  document.getElementById('viewer-close').focus();
+  if (!viewerPushed) { history.pushState({ gallery: true }, ''); viewerPushed = true; }
+}
+function closeViewer(fromPop) {
+  if (viewer) viewer.hidden = true;
+  if (viewerImg) { viewerImg.removeAttribute('src'); viewerImg.alt = ''; }
+  viewerId = null;
+  if (viewerPushed && !fromPop) { viewerPushed = false; history.back(); return; }
+  viewerPushed = false;
+}
+let ignorePhotoClick = false;
 document.addEventListener('click', e => {
+  if (ignorePhotoClick) { ignorePhotoClick = false; return; }
+  const photoBtn = e.target.closest('[data-photo]');
+  if (photoBtn) { stepPhoto(photoBtn.dataset.id, photoBtn.dataset.photo === 'next' ? 1 : -1); return; }
+  const shot = e.target.closest('.card-media img');
+  if (shot) {
+    const card = shot.closest('.card-media');
+    if (card && card.dataset.id) openViewer(card.dataset.id, Number(shot.dataset.slide));
+    return;
+  }
   const c = e.target.closest('[data-filter]');
   if (c) { filter = c.dataset.filter; document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x === c)); render(); return; }
   const a = e.target.closest('[data-add]'), d = e.target.closest('[data-dec]');
   if (a && !a.disabled) { const id = a.dataset.add, p = products.find(x => x.id == id); if ((cart[id] || 0) < p.stock) cart[id] = (cart[id] || 0) + 1; render(); }
   if (d) { cart[d.dataset.dec]--; render(); }
 });
+if (viewer) {
+  document.getElementById('viewer-close').addEventListener('click', () => closeViewer(false));
+  document.getElementById('viewer-prev').addEventListener('click', () => { if (viewerId != null) { stepPhoto(viewerId, -1); openViewer(viewerId); } });
+  document.getElementById('viewer-next').addEventListener('click', () => { if (viewerId != null) { stepPhoto(viewerId, 1); openViewer(viewerId); } });
+  document.addEventListener('keydown', e => {
+    if (viewer.hidden) return;
+    if (e.key === 'Escape') closeViewer(false);
+    else if (e.key === 'ArrowLeft' && viewerId != null) { stepPhoto(viewerId, -1); openViewer(viewerId); }
+    else if (e.key === 'ArrowRight' && viewerId != null) { stepPhoto(viewerId, 1); openViewer(viewerId); }
+  });
+  window.addEventListener('popstate', () => { if (!viewer.hidden) closeViewer(true); });
+}
+let touchStart = null;
+document.addEventListener('touchstart', e => {
+  const media = e.target.closest('.card-media');
+  if (!media || e.target.closest('button') || !e.changedTouches[0]) return;
+  const t = e.changedTouches[0];
+  touchStart = { x: t.clientX, y: t.clientY, id: media.dataset.id };
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!touchStart || !e.changedTouches[0]) { touchStart = null; return; }
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const id = touchStart.id;
+  touchStart = null;
+  if (id && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { ignorePhotoClick = true; stepPhoto(id, dx < 0 ? 1 : -1); }
+}, { passive: true });
 let payments = null;
 let paymentsOn = false;
 function setCheckoutMode(on) {

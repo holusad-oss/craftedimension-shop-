@@ -165,6 +165,13 @@
     })();
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>
-  <script src="shop.js"></script>
+  <div id="viewer" class="viewer" hidden>
+    <button type="button" class="viewer-close" id="viewer-close">Close</button>
+    <button type="button" class="viewer-arrow viewer-prev" id="viewer-prev" aria-label="Previous photo">‹</button>
+    <img id="viewer-img" alt="">
+    <button type="button" class="viewer-arrow viewer-next" id="viewer-next" aria-label="Next photo">›</button>
+    <p id="viewer-count" class="viewer-count"></p>
+  </div>
+  <script src="shop.js?v=2"></script>
 </body>
 </html>
