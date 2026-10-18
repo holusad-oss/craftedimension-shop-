@@ -85,10 +85,10 @@
       </label>
       <label>Colour <input name="colour" maxlength="80" autocomplete="off"></label>
       <fieldset class="size-fields">
-        <legend>Size (mm)</legend>
-        <label>Length <input name="size_l" type="number" inputmode="numeric" min="0" step="1"></label>
-        <label>Width <input name="size_w" type="number" inputmode="numeric" min="0" step="1"></label>
-        <label>Height <input name="size_h" type="number" inputmode="numeric" min="0" step="1"></label>
+        <legend>Size</legend>
+        <label>Height (cm) <input name="size_h" type="number" inputmode="decimal" min="0" step="any"></label>
+        <label>Width (cm) <input name="size_w" type="number" inputmode="decimal" min="0" step="any"></label>
+        <label>Depth (cm) <input name="size_l" type="number" inputmode="decimal" min="0" step="any"></label>
       </fieldset>
       <label>Detail level <input name="detail" maxlength="120" value="0.2 mm layers" autocomplete="off"></label>
       <label>Finish
@@ -181,6 +181,18 @@
       cancelBtn.hidden = true;
       clearGallery();
     }
+    function cmField(mm) {
+      if (mm == null || mm === '') return '';
+      const n = Number(mm);
+      if (!Number.isFinite(n)) return '';
+      return String(Math.round(n * 10) / 100);
+    }
+    function mmField(cm) {
+      if (cm == null || String(cm).trim() === '') return '';
+      const n = Number(cm);
+      if (!Number.isFinite(n) || n < 0) return '';
+      return String(Math.round(n * 100) / 10);
+    }
     function startEdit(p) {
       editing = p.id;
       form.name.value = p.name || '';
@@ -190,9 +202,9 @@
       form.printType.value = p.printType === 'Resin' ? 'Resin' : 'FDM';
       form.material.value = p.material || '';
       form.colour.value = p.colour || '';
-      form.size_l.value = p.size_mm && p.size_mm.l != null ? p.size_mm.l : '';
-      form.size_w.value = p.size_mm && p.size_mm.w != null ? p.size_mm.w : '';
-      form.size_h.value = p.size_mm && p.size_mm.h != null ? p.size_mm.h : '';
+      form.size_l.value = cmField(p.size_mm && p.size_mm.l);
+      form.size_w.value = cmField(p.size_mm && p.size_mm.w);
+      form.size_h.value = cmField(p.size_mm && p.size_mm.h);
       form.detail.value = p.detail || '';
       form.finish.value = ['raw', 'sanded', 'primed', 'painted'].indexOf(p.finish) >= 0 ? p.finish : 'raw';
       form.care_notes.value = p.care_notes || '';
@@ -287,6 +299,7 @@
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const fd = new FormData(form);
+      ['size_h', 'size_w', 'size_l'].forEach(name => fd.set(name, mmField(fd.get(name))));
       let added = 0;
       const order = gallery.map(item => {
         if (item.file) { fd.append('photos', item.file); return 'n:' + (added++); }

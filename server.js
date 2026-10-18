@@ -184,10 +184,25 @@ app.use('/api/admin', notForApp);
 app.use('/admin', adminAuthLimit);
 app.use('/api/admin', adminAuthLimit);
 
+function cmNumber(mm) {
+  const n = Number(mm);
+  if (!Number.isFinite(n)) return '';
+  return String(Math.round(n * 10) / 100);
+}
+// Stored size is mm: l is depth, w is width, h is height. Shop text is cm, whole numbers without a trailing .0.
+function formatSizeText(size) {
+  const s = size && typeof size === 'object' ? size : {};
+  const parts = [];
+  if (s.h != null && s.h !== '') parts.push('H ' + cmNumber(s.h));
+  if (s.w != null && s.w !== '') parts.push('W ' + cmNumber(s.w));
+  if (s.l != null && s.l !== '') parts.push('D ' + cmNumber(s.l));
+  return parts.length ? parts.join(' \u00d7 ') + ' cm' : '';
+}
 const pub = p => {
+  const size = p.size_mm || { l: null, w: null, h: null };
   const o = {
     id: p.id, name: p.name, description: p.description, price: p.price, stock: p.stock, gradient: p.gradient, printType: p.printType || 'FDM', sample: !!p.sample,
-    material: p.material || '', colour: p.colour || '', size_mm: p.size_mm || { l: null, w: null, h: null },
+    material: p.material || '', colour: p.colour || '', size_mm: size, sizeText: formatSizeText(size),
     detail: p.detail || '', finish: p.finish || 'raw', care_notes: p.care_notes || '',
     lead_time_days: Array.isArray(p.lead_time_days) ? p.lead_time_days : [3, 7],
   };

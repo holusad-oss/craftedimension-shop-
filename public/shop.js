@@ -10,11 +10,19 @@ function leadText(p) {
   const days = a === b ? a + ' days' : a + '\u2013' + b + ' days';
   return 'Made to order \u00b7 ships in ' + days;
 }
+function cmNumber(mm) {
+  const n = Number(mm);
+  if (!Number.isFinite(n)) return '';
+  return String(Math.round(n * 10) / 100);
+}
 function sizeText(p) {
+  if (typeof p.sizeText === 'string') return p.sizeText;
   const s = p.size_mm || {};
-  if (s.l == null && s.w == null && s.h == null) return '';
-  const part = n => (n == null || n === '' ? '\u2014' : n);
-  return part(s.l) + '\u00d7' + part(s.w) + '\u00d7' + part(s.h) + ' mm';
+  const parts = [];
+  if (s.h != null && s.h !== '') parts.push('H ' + cmNumber(s.h));
+  if (s.w != null && s.w !== '') parts.push('W ' + cmNumber(s.w));
+  if (s.l != null && s.l !== '') parts.push('D ' + cmNumber(s.l));
+  return parts.length ? parts.join(' \u00d7 ') + ' cm' : '';
 }
 function finishLabel(f) {
   return { raw: 'Raw', sanded: 'Sanded', primed: 'Primed', painted: 'Painted' }[f] || f || '';

@@ -26,6 +26,9 @@ async function api(path, options) {
   fd.set('price', '12.5');
   fd.set('stock', '4');
   fd.set('description', 'Four photos');
+  fd.set('size_h', '170');
+  fd.set('size_w', '100');
+  fd.set('size_l', '30');
   files.forEach((buf, i) => fd.append('photos', new Blob([buf], { type: 'image/png' }), 'photo-' + (i + 1) + '.png'));
   const created = await api('/api/admin/products', { method: 'POST', headers: { Authorization: auth }, body: fd });
   if (created.status !== 200) fail('create ' + created.status + ' ' + JSON.stringify(created.body));
@@ -39,6 +42,8 @@ async function api(path, options) {
   if (!pub.image || !pub.thumb) fail('missing image/thumb');
   if (!Array.isArray(pub.images) || pub.images.length !== 4) fail('public images length');
   if (pub.images[0].url !== pub.image || pub.images[0].thumb !== pub.thumb) fail('main fields do not match images[0]');
+  if (!pub.size_mm || pub.size_mm.h !== 170 || pub.size_mm.w !== 100 || pub.size_mm.l !== 30) fail('size_mm ' + JSON.stringify(pub.size_mm));
+  if (pub.sizeText !== 'H 17 \u00d7 W 10 \u00d7 D 3 cm') fail('sizeText ' + pub.sizeText);
   if (!pub.images.every(shot => shot.url && shot.thumb)) fail('image entries need url and thumb');
   const mainBefore = Buffer.from(await (await fetch(base + pub.image)).arrayBuffer());
 
@@ -54,6 +59,7 @@ async function api(path, options) {
   const pub2 = after.body.find(p => p.id === product.id);
   if (pub2.images.length !== 3) fail('expected 3 after remove');
   if (pub2.image !== pub2.images[0].url) fail('main not images[0] after reorder');
+  if (pub2.sizeText !== 'H 17 \u00d7 W 10 \u00d7 D 3 cm') fail('sizeText changed on reorder');
   const mainAfter = Buffer.from(await (await fetch(base + pub2.image)).arrayBuffer());
   if (mainBefore.equals(mainAfter)) fail('main photo bytes did not change');
   const extra = await fetch(base + pub2.images[1].url);
@@ -68,6 +74,20 @@ async function api(path, options) {
     body: (() => { const form = new FormData(); form.set('imageOrder', [a, d, b].join(',')); return form; })(),
   });
   if (mainSet.status !== 200 || mainSet.body.images[0] !== a) fail('set main failed ' + JSON.stringify(mainSet.body && mainSet.body.images));
+
+  const partial = new FormData();
+  partial.set('name', 'Partial size');
+  partial.set('price', '1');
+  partial.set('stock', '1');
+  partial.set('size_h', '32');
+  partial.set('size_w', '25.5');
+  const part = await api('/api/admin/products', { method: 'POST', headers: { Authorization: auth }, body: partial });
+  if (part.status !== 200) fail('partial ' + part.status + ' ' + JSON.stringify(part.body));
+  const partPub = (await api('/api/products')).body.find(p => p.id === part.body.id);
+  if (!partPub || partPub.sizeText !== 'H 3.2 \u00d7 W 2.55 cm') fail('partial sizeText ' + (partPub && partPub.sizeText));
+  if (partPub.size_mm.l != null) fail('unset depth should stay empty');
+  const partDel = await api('/api/admin/products/' + part.body.id, { method: 'DELETE', headers: { Authorization: auth } });
+  if (partDel.status !== 200) fail('partial delete ' + partDel.status);
 
   const tooMany = new FormData();
   tooMany.set('name', 'Too many');
