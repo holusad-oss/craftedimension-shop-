@@ -350,9 +350,9 @@ function handleEvent(event) {
 
 const page = (title, body) => `<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Crafted.i.mentions</title>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="icon" href="/favicon.v2.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.v2.png"><link rel="apple-touch-icon" href="/apple-touch-icon.v2.png">
-<meta property="og:title" content="${escH(title)} — Crafted.i.mentions"><meta property="og:description" content="Handcrafted 3D printed products from Crafted.i.mentions."><meta property="og:image" content="https://craftedimension-shop.onrender.com/img/og-image.v2.jpg"><meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="/styles.css"></head><body><header class="site-header"><a class="logo" href="/"><picture><source srcset="/img/logo-wide.v2.webp" type="image/webp"><img src="/img/logo-wide.v2.png" alt="Crafted.i.mentions" width="1000" height="353"></picture></a><nav aria-label="Primary"><a href="/#products">Shop</a></nav></header>
+<link rel="icon" href="/favicon.v5.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.v5.png"><link rel="icon" type="image/png" sizes="512x512" href="/icon-512.v5.png"><link rel="apple-touch-icon" href="/apple-touch-icon.v5.png">
+<meta property="og:title" content="${escH(title)} — Crafted.i.mentions"><meta property="og:description" content="Handcrafted 3D printed products from Crafted.i.mentions."><meta property="og:image" content="https://craftedimension-shop.onrender.com/img/og-image.v5.jpg"><meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/styles.css"></head><body><header class="site-header"><a class="logo" href="/"><picture><source srcset="/img/logo-header.v5.webp" type="image/webp"><img src="/img/logo-header.v5.png" alt="Crafted.i.mentions" width="1128" height="320"></picture></a><nav aria-label="Primary"><a href="/#products">Shop</a></nav></header>
 <main class="checkout-result">${body}</main></body></html>`;
 const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
 const gbpFmt = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
