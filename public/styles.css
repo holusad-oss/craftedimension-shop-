@@ -14,7 +14,7 @@
   --terracotta-ink: #964a22;
   --accent-soft: #f6dfcf;
   --honey: #e6a94a;
-  --header: #1c1714;
+  --header: #000;
   --resin: #6a4c93;
   --resin-soft: #ece4f5;
   --media: #f3e9dc;
@@ -89,9 +89,9 @@ h3 { font-size: 1.375rem; }
 
 .logo img {
   display: block;
-  width: 220px;
-  max-width: calc(100vw - 32px);
-  height: auto;
+  width: auto;
+  height: 64px;
+  max-width: 100%;
   object-fit: contain;
   object-position: center;
   color: var(--cream);
@@ -100,10 +100,7 @@ h3 { font-size: 1.375rem; }
 }
 
 @media (min-width: 601px) {
-  .logo img {
-    width: 260px;
-    max-width: 100%;
-  }
+  .logo img { height: 80px; }
 }
 
 @media (min-width: 901px) {
@@ -114,7 +111,7 @@ h3 { font-size: 1.375rem; }
     margin: 0 1.25rem 0 0;
   }
   .logo img {
-    width: 320px;
+    height: 96px;
     max-width: none;
     object-position: left center;
   }
@@ -182,7 +179,7 @@ hr.divider {
   max-width: 36rem;
   margin: 0 2rem 0.5rem 0;
   padding: 0.7rem;
-  background: #0b0909;
+  background: #000;
   border: 1px solid rgba(176, 141, 87, 0.75);
   border-radius: 12px;
 }
