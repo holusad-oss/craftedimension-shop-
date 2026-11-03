@@ -14,8 +14,8 @@ ADMIN_PASSWORD=choose-a-password npm start   # http://localhost:3000, admin at /
 If `ADMIN_PASSWORD` is not set, a random password is generated and printed to the console at startup.
 
 ## Data
-- `data/seed.json` – sample products (all marked as samples), including material, colour, size, detail, finish, care notes and lead time.
-- `data/db.json` – live products, stock, orders, custom requests and contact messages; created from the seed on first start (git-ignored). Delete it to reset. On startup, missing product fields are filled in (sample names get the sample specs; anything else gets PLA or Standard resin, raw finish, and a 3–7 day lead time) without overwriting values already saved.
+- `data/seed.json` – starting catalogue. It is an empty list, so a fresh boot has no products until they are added in `/admin` (with photos).
+- `data/db.json` – live products, stock, orders, custom requests and contact messages; created from the seed on first start (git-ignored). Delete it to reset to an empty catalogue. On startup, missing product fields are filled in (PLA or Standard resin, raw finish, and a 3–7 day lead time; a few legacy sample names still receive their old specs if that exact name is already stored) without overwriting values already saved.
 
 ## Deploy on Render
 - Runtime: Node · Build: `npm install` · Start: `node server.js`
