@@ -67,7 +67,7 @@ function render() {
       <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span>${st ? '<br>' + st : ''}</div>
       <button class="btn small" data-add="${p.id}" ${avail <= 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : avail <= 0 ? 'All in basket' : 'Add to basket'}</button></div>
     </article>`;
-  }).join('') || '<p class="muted">No products in this category yet.</p>';
+  }).join('') || '<p class="muted">' + (products.length ? 'No products in this category yet.' : 'No products yet.') + '</p>';
   const ids = Object.keys(cart).filter(id => cart[id] > 0);
   let total = 0;
   document.getElementById('cart-lines').innerHTML = ids.length ? ids.map(id => {

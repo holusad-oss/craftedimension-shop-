@@ -167,16 +167,33 @@ function migrateState(state) {
   return changed;
 }
 
+// Catalogue entries from data/seed.json. An empty or unreadable file starts the shop with no products.
+// SAMPLE_SPECS only fills missing fields on a product that already has that name; it never adds a listing.
+function readSeedProducts() {
+  let raw;
+  try { raw = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8')); }
+  catch { return []; }
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(p => p && typeof p === 'object' && !Array.isArray(p));
+}
+
 function seedState() {
-  // Migration: an existing local db.json (products, stock, orders) wins over the sample seed.
+  // An existing local db.json (products, stock, orders) wins over the seed file.
   if (fs.existsSync(DB_FILE)) {
     const state = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     const changed = migrateState(state);
     return { state, from: 'data/db.json', changed };
   }
-  const s = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
-  const state = { products: s.map((p, i) => ({ id: i + 1, sample: true, ...p })), orders: [], customRequests: [], contactMessages: [], nextId: s.length + 1 };
+  const s = readSeedProducts();
+  const state = {
+    products: s.map((p, i) => ({ id: i + 1, sample: true, ...p })),
+    orders: [],
+    customRequests: [],
+    contactMessages: [],
+    nextId: s.length + 1,
+  };
   migrateState(state);
+  if (!state.products.length) state.nextId = 1;
   return { state, from: 'data/seed.json', changed: true };
 }
 
