@@ -37,7 +37,7 @@ The Crafted.i.mentions Android app is recognised when the `User-Agent` contains 
 The storefront has no admin link of its own. The shop page in a normal browser is unchanged.
 
 ## Privacy
-`/privacy` (`public/privacy.html`) is linked from the footer. Replace the `[OWNER NAME]` and `[CONTACT EMAIL]` placeholders before launch.
+`/privacy` (`public/privacy.html`) is linked from the footer. It says what the shop keeps to make and send an order, that card details stay with the payment provider, and to email Crafted.i.mentions once the shop address is live. There is no contact email on the page yet.
 
 ## Storage
 
@@ -51,7 +51,7 @@ Postgres also keeps contact messages in `contact_messages`.
 
 ## Legal pages
 
-`/delivery`, `/returns` and `/terms` are linked from the footer, along with `/privacy`. They use `[OWNER NAME]`, `[CONTACT EMAIL]` and `[BUSINESS ADDRESS]` and each shows a "Draft — for owner review" banner. Replace the placeholders before launch.
+`/delivery`, `/returns` and `/terms` are linked from the footer. They use `[OWNER NAME]`, `[CONTACT EMAIL]` and `[BUSINESS ADDRESS]` and each shows a "Draft — for owner review" banner. Replace the placeholders before launch.
 
 ## Materials, lead time and custom prints
 
@@ -59,4 +59,4 @@ Postgres also keeps contact messages in `contact_messages`.
 
 ## Postage
 
-UK postage is £3.50, free when the goods subtotal is £30 or more. It is calculated on the server and sent to Stripe as a fixed-amount shipping rate.
+UK postage is £3.50, free when the goods subtotal is £35 or more. It is calculated on the server and sent to Stripe as a fixed-amount shipping rate.
