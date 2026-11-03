@@ -248,8 +248,8 @@ app.get('/img/p/:name', async (req, res) => {
 // --- Stripe Checkout -------------------------------------------------------
 // Prices and stock come from the server's product data only; the client sends ids and quantities.
 const pence = n => Math.round(Number(n) * 100);
-// Postage (UK): free when the goods subtotal is £30 or more, otherwise £3.50. Computed in pence.
-const FREE_POSTAGE_FROM_P = 3000, POSTAGE_P = 350;
+// Postage (UK): free when the goods subtotal is £35 or more, otherwise £3.50. Computed in pence.
+const FREE_POSTAGE_FROM_P = 3500, POSTAGE_P = 350;
 const postagePence = subtotalP => (subtotalP >= FREE_POSTAGE_FROM_P ? 0 : POSTAGE_P);
 function baseUrl(req) { return (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, ''); }
 function releaseStock(order) {
@@ -300,7 +300,7 @@ app.post('/api/checkout/session', checkoutLimit, async (req, res) => {
       currency: 'gbp',
       line_items: lines.map(({ p, q }) => ({ quantity: q, price_data: { currency: 'gbp', unit_amount: pence(p.price), product_data: { name: p.name } } })),
       shipping_address_collection: { allowed_countries: ['GB'] },
-      shipping_options: [{ shipping_rate_data: { type: 'fixed_amount', display_name: postP ? 'UK delivery' : 'Free UK delivery (orders £30+)',
+      shipping_options: [{ shipping_rate_data: { type: 'fixed_amount', display_name: postP ? 'UK delivery' : 'Free UK delivery (orders £35+)',
         fixed_amount: { amount: postP, currency: 'gbp' } } }],
       client_reference_id: order.id,
       metadata: { order_id: order.id },

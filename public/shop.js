@@ -78,7 +78,7 @@ function render() {
   document.getElementById('cart-count').textContent = ids.reduce((s, id) => s + cart[id], 0);
 }
 // Display only — the server recalculates postage from its own prices at checkout.
-const FREE_FROM = 30, POSTAGE = 3.5;
+const FREE_FROM = 35, POSTAGE = 3.5;
 function basketTotals(sub) {
   const subP = Math.round(sub * 100), post = subP >= FREE_FROM * 100 ? 0 : POSTAGE;
   const hint = post ? `<p class="postage-hint">Add ${gbp.format(FREE_FROM - subP / 100)} more for <strong>free UK postage</strong> on orders of ${gbp.format(FREE_FROM)} or more.</p>` : '<p class="postage-hint ok">You\u2019ve got <strong>free UK postage</strong>.</p>';
@@ -221,7 +221,7 @@ fetch('/api/config').then(r => r.json()).then(c => {
   payments = c;
   if (!c.payments) {
     setCheckoutMode(false);
-    document.getElementById('pay-note').innerHTML = "<strong>Card payments aren't open yet.</strong> You can still fill your basket, then use <a class=\"order-link\" href=\"/#contact\">Order by message</a>. UK postage is £3.50, or free on orders of £30 or more.";
+    document.getElementById('pay-note').innerHTML = "<strong>Card payments aren't open yet.</strong> You can still fill your basket, then use <a class=\"order-link\" href=\"/#contact\">Order by message</a>. UK postage is £3.50, free above £35.";
     document.getElementById('footer-note').textContent = 'Online payments coming soon';
   } else {
     setCheckoutMode(true);
