@@ -37,7 +37,7 @@ The Crafted.i.mentions Android app is recognised when the `User-Agent` contains 
 The storefront has no admin link of its own. The shop page in a normal browser is unchanged.
 
 ## Privacy
-`/privacy` (`public/privacy.html`) is linked from the footer. It says what the shop keeps to make and send an order, that card details stay with the payment provider, and to email Crafted.i.mentions once the shop address is live. There is no contact email on the page yet.
+`/privacy` (`public/privacy.html`) is linked from the footer. It says what the shop keeps to process an order, that you pay direct and we never see your banking login, and that details are shared only with the courier. For privacy questions, email once the shop address is set up. There is no contact email on the page yet.
 
 ## Storage
 
