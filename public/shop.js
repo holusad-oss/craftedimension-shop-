@@ -222,10 +222,8 @@ fetch('/api/config').then(r => r.json()).then(c => {
   if (!c.payments) {
     setCheckoutMode(false);
     document.getElementById('pay-note').innerHTML = "<strong>Card payments aren't open yet.</strong> You can still fill your basket, then use <a class=\"order-link\" href=\"/#contact\">Order by message</a>. UK postage is £3.50, free above £35.";
-    document.getElementById('footer-note').textContent = 'Online payments coming soon';
   } else {
     setCheckoutMode(true);
-    if (c.testMode) document.getElementById('footer-note').textContent = 'Stripe test mode · no real payments';
   }
 }).catch(() => setCheckoutMode(false));
 document.addEventListener('click', e => {
