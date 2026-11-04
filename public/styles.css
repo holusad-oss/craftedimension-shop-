@@ -26,7 +26,15 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Sticky header is the full crest. Keep anchor targets below it. */
+  scroll-padding-top: 23.5rem;
+}
+
+@media (min-width: 901px) {
+  html { scroll-padding-top: 21rem; }
+}
 
 body {
   margin: 0;
@@ -64,10 +72,11 @@ h3 { font-size: 1.375rem; }
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  padding: 0.5rem 1.5rem;
+  padding: 0.35rem 1.5rem 0.45rem;
   background: var(--header);
   color: var(--cream);
   border-bottom: 2px solid var(--gold);
+  overflow: visible;
 }
 
 .site-header :focus { outline-color: var(--cream); }
@@ -87,23 +96,19 @@ h3 { font-size: 1.375rem; }
 
 .logo picture { display: block; max-width: 100%; }
 
+/* v36 is the full square mark (skull, lettering, flourish). Size the box
+   with the image's own aspect ratio so nothing is cropped or stretched. */
 .logo img {
   display: block;
-  width: auto;
-  height: 64px;
-  max-width: 100%;
+  width: 100%;
+  height: auto;
+  max-width: 300px;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
   object-position: center;
   color: var(--cream);
   font-family: var(--font);
   font-size: 0.95rem;
-}
-
-@media (min-width: 601px) {
-  .logo img {
-    height: 80px;
-    max-width: 100%;
-  }
 }
 
 @media (min-width: 901px) {
@@ -112,15 +117,18 @@ h3 { font-size: 1.375rem; }
     flex: 0 1 auto;
     justify-content: flex-start;
     margin: 0 1.25rem 0 0;
+    max-width: 300px;
   }
   .logo img {
-    height: 96px;
+    width: 300px;
     max-width: 100%;
-    object-position: left center;
+    height: auto;
+    object-position: center;
   }
   nav {
     flex: 1 1 auto;
     justify-content: flex-end;
+    align-self: center;
   }
 }
 
