@@ -3,6 +3,15 @@ const nodemailer = require('nodemailer');
 const { itemTitle } = require('./lib/resin-colour');
 const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 
+// Public shop address. Used when From / Reply-To are unset. SMTP login is unchanged.
+const SHOP_EMAIL = 'teamcraftedimensions@gmail.com';
+
+function mailIdentity() {
+  const from = String(process.env.SMTP_FROM || '').trim() || SHOP_EMAIL;
+  const replyTo = String(process.env.SMTP_REPLY_TO || '').trim() || SHOP_EMAIL;
+  return { from, replyTo };
+}
+
 function formatOrder(o) {
   const a = (o.shipping && o.shipping.address) || {};
   const addr = [o.shipping && o.shipping.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).join('\n');
@@ -26,7 +35,7 @@ async function orderPaid(order) {
   const text = formatOrder(order);
   const t = getTransport(), to = process.env.OWNER_EMAIL;
   if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
-  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Crafted.i.mentions — order ${order.id} — ${order.items.map(itemTitle).join(', ')}`.slice(0, 150), text });
+  await t.sendMail({ ...mailIdentity(), to, subject: `Crafted.i.mentions — order ${order.id} — ${order.items.map(itemTitle).join(', ')}`.slice(0, 150), text });
   console.log(`[notify] emailed ${to} about order ${order.id}`);
   return { emailed: true };
 }
@@ -41,7 +50,7 @@ async function customRequest(r) {
   const text = formatCustom(r);
   const t = getTransport(), to = process.env.OWNER_EMAIL;
   if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
-  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Crafted.i.mentions — custom print request from ${r.name}`.slice(0, 150), text });
+  await t.sendMail({ ...mailIdentity(), to, subject: `Crafted.i.mentions — custom print request from ${r.name}`.slice(0, 150), text });
   console.log(`[notify] emailed ${to} about custom request ${r.id}`);
   return { emailed: true };
 }
@@ -54,9 +63,9 @@ async function contactMessage(r) {
   const text = formatContact(r);
   const t = getTransport(), to = process.env.OWNER_EMAIL;
   if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
-  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Crafted.i.mentions — message from ${r.name}`.slice(0, 150), text });
+  await t.sendMail({ ...mailIdentity(), to, subject: `Crafted.i.mentions — message from ${r.name}`.slice(0, 150), text });
   console.log(`[notify] emailed ${to} about message ${r.id}`);
   return { emailed: true };
 }
 
-module.exports = { orderPaid, formatOrder, customRequest, contactMessage };
+module.exports = { orderPaid, formatOrder, customRequest, contactMessage, mailIdentity, SHOP_EMAIL };
