@@ -17,7 +17,6 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 // Test mode only unless the owner deliberately opts in to live keys.
 const LIVE_BLOCKED = STRIPE_KEY.startsWith('sk_live_') && process.env.STRIPE_ALLOW_LIVE !== '1';
 const PAYMENTS_ON = !!STRIPE_KEY && !LIVE_BLOCKED;
-const RESERVE_MIN = 30; // Stripe minimum session lifetime is 30 min
 function stripeOpts() {
   // STRIPE_API_BASE is for local testing against a mock (e.g. http://127.0.0.1:12111). Never set it on Render.
   if (!process.env.STRIPE_API_BASE) return {};
@@ -107,13 +106,12 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       baseUri: ["'self'"],
-      scriptSrc: ["'self'", 'https://js.stripe.com', "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", 'https://fonts.googleapis.com', "'unsafe-inline'"],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'", 'https://api.stripe.com', 'https://checkout.stripe.com'],
-      frameSrc: ['https://js.stripe.com', 'https://checkout.stripe.com'],
-      formAction: ["'self'", 'https://checkout.stripe.com'],
+      connectSrc: ["'self'"],
+      formAction: ["'self'"],
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
     },
@@ -248,21 +246,19 @@ app.get('/img/p/:name', async (req, res) => {
   res.send(img.buf);
 });
 
-// --- Stripe Checkout -------------------------------------------------------
-// Prices and stock come from the server's product data only; the client sends ids and quantities.
-const pence = n => Math.round(Number(n) * 100);
-// Postage (UK): free when the goods subtotal is £35 or more, otherwise £3.50. Computed in pence.
+// --- Payments --------------------------------------------------------------
+// New baskets are bank-transfer enquiries sent by the shopper. This route no longer
+// starts a card payment. Postage figures stay here for the public config.
+// Postage (UK): free when the goods subtotal is £35 or more, otherwise £3.50.
 const FREE_POSTAGE_FROM_P = 3500, POSTAGE_P = 350;
-const postagePence = subtotalP => (subtotalP >= FREE_POSTAGE_FROM_P ? 0 : POSTAGE_P);
-function baseUrl(req) { return (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, ''); }
 function releaseStock(order) {
   if (order.stockReleased || order.status !== 'pending') return;
   order.items.forEach(i => { const p = db.products.find(x => x.id === i.id); if (p) p.stock += i.qty; });
   order.stockReleased = true;
 }
 
-app.get('/api/config', (req, res) => res.json({ payments: PAYMENTS_ON, testMode: !STRIPE_KEY.startsWith('sk_live_'), freePostageFrom: FREE_POSTAGE_FROM_P / 100, postage: POSTAGE_P / 100 }));
-// Lets the basket (e.g. in the Android app, where Stripe opens in the browser) see whether its order was paid.
+app.get('/api/config', (req, res) => res.json({ payments: false, freePostageFrom: FREE_POSTAGE_FROM_P / 100, postage: POSTAGE_P / 100 }));
+// Historical orders only. A new basket enquiry is not stored as an order.
 app.get('/api/orders/:id/status', (req, res) => {
   const o = db.orders.find(x => x.id === String(req.params.id));
   res.json(o ? { status: o.status } : { status: 'unknown' });
@@ -276,39 +272,11 @@ app.post('/api/checkout/session', checkoutLimit, async (req, res) => {
     if (resolved.refresh) body.products = publicList();
     return res.status(resolved.status || 400).json(body);
   }
-  if (!PAYMENTS_ON) return res.status(503).json({ error: "Payments aren't set up yet — please check back soon or contact us to order.", notConfigured: true });
-  const lines = resolved.lines;
-  // Reserve stock now (synchronously, so no oversell); released if the session expires or is cancelled.
-  lines.forEach(({ p, q }) => { p.stock -= q; });
-  const order = { id: crypto.randomBytes(4).toString('hex').toUpperCase(), status: 'pending', createdAt: new Date().toISOString(),
-    items: lines.map(resinColour.orderItem),
-    currency: 'gbp' };
-  const subP = lines.reduce((s, { p, q }) => s + pence(p.price) * q, 0), postP = postagePence(subP);
-  order.subtotal = subP / 100; order.postage = postP / 100; order.total = (subP + postP) / 100;
-  db.orders.push(order);
-  try { await save(db); } catch { releaseStock(order); db.orders.pop(); return res.status(503).json({ error: "The shop couldn't save your order. Please try again." }); }
-  const base = baseUrl(req);
-  try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      currency: 'gbp',
-      line_items: lines.map(line => ({ quantity: line.q, price_data: { currency: 'gbp', unit_amount: pence(line.p.price), product_data: { name: resinColour.itemTitle(resinColour.orderItem(line)) } } })),
-      shipping_address_collection: { allowed_countries: ['GB'] },
-      shipping_options: [{ shipping_rate_data: { type: 'fixed_amount', display_name: postP ? 'UK delivery' : 'Free UK delivery (orders £35+)',
-        fixed_amount: { amount: postP, currency: 'gbp' } } }],
-      client_reference_id: order.id,
-      metadata: { order_id: order.id },
-      expires_at: Math.floor(Date.now() / 1000) + RESERVE_MIN * 60,
-      success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/checkout/cancel?order=${order.id}`,
-    }, { idempotencyKey: 'order-' + order.id });
-    order.sessionId = session.id; await save(db);
-    res.json({ url: session.url, order: order.id });
-  } catch (e) {
-    console.error('[stripe] session create failed:', e.message);
-    releaseStock(order); order.status = 'failed'; save(db);
-    res.status(502).json({ error: "We couldn't start the payment. Please try again in a moment.", products: publicList() });
-  }
+  // Card checkout is closed. Do not reserve stock, store an order, or start a payment session.
+  return res.status(503).json({
+    error: 'Card checkout is closed. Email teamcraftedimensions@gmail.com and ask for bank transfer instructions. That email does not place an order.',
+    notConfigured: true,
+  });
 });
 
 function shippingOf(s) {
@@ -358,7 +326,7 @@ app.get('/checkout/success', async (req, res) => {
     // Webhook may not have arrived yet: confirm directly with Stripe (read-only) for the message.
     try { const s = await stripe.checkout.sessions.retrieve(sid); if (s.payment_status === 'paid') order = { ...order, status: 'paid', email: s.customer_details && s.customer_details.email }; } catch {}
   }
-  if (!order) return res.status(404).send(page('Order not found', `<h1>We couldn't find that order</h1><p>If you've paid, you'll get an email receipt from Stripe. <a href="/#contact">Contact us</a> if you need help.</p><p><a class="btn" href="/">Back to the shop</a></p>`));
+  if (!order) return res.status(404).send(page('Order not found', `<h1>We couldn't find that order</h1><p>If you need help, email <a href="mailto:teamcraftedimensions@gmail.com">teamcraftedimensions@gmail.com</a>. An enquiry email is not a payment.</p><p><a class="btn" href="/">Back to the shop</a></p>`));
   const paid = order.status === 'paid' || order.status === 'sent';
   res.send(page(paid ? 'Thank you' : 'Payment processing', `<h1>${paid ? 'Thank you for your order!' : 'Your payment is being confirmed'}</h1>
 <p>Order <strong>${escH(order.id)}</strong> · ${gbpFmt.format(order.total)}${order.postage != null ? ` <span class="muted">(includes ${order.postage ? gbpFmt.format(order.postage) + ' postage' : 'free postage'})</span>` : ''}</p>
@@ -374,7 +342,7 @@ app.get('/checkout/cancel', async (req, res) => {
     // Release only if the session really didn't complete in the meantime.
     if (order.status === 'pending') { releaseStock(order); order.status = 'cancelled'; save(db); }
   }
-  res.send(page('Checkout cancelled', `<h1>Checkout cancelled</h1><p>No payment was taken. Your basket items are still available in the shop.</p><p><a class="btn" href="/#cart">Back to your basket</a></p>`));
+  res.send(page('No payment was taken', `<h1>No payment was taken</h1><p>Your pieces are still available in the shop.</p><p><a class="btn" href="/#cart">Back to your basket</a></p>`));
 });
 
 // Admin (HTTP Basic auth, any username)
@@ -653,8 +621,8 @@ async function start() {
   db = await store.init();
   app.listen(PORT, () => {
   console.log(`Storage: ${store.kind}`);
-  console.log(PAYMENTS_ON ? `Stripe payments ON (${STRIPE_KEY.startsWith('sk_live_') ? 'LIVE' : 'test'} mode)` : (LIVE_BLOCKED ? 'Stripe live key refused: set STRIPE_ALLOW_LIVE=1 to go live' : 'Stripe not configured: checkout shows "payments not set up"'));
-  if (PAYMENTS_ON && !WEBHOOK_SECRET) console.warn('STRIPE_WEBHOOK_SECRET is not set: paid orders will not be recorded!');
+  console.log('Card checkout is closed. Shoppers email the shop for bank transfer instructions.');
+  if (PAYMENTS_ON && !WEBHOOK_SECRET) console.warn('STRIPE_WEBHOOK_SECRET is not set: historical paid orders will not be recorded from webhooks.');
   console.log(`Crafted.i.mentions demo shop on http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin  password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? ' (from env)' : ' (random, generated at startup — set ADMIN_PASSWORD to fix it)'}`);
 });
