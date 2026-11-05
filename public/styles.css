@@ -484,6 +484,7 @@ hr.divider {
 .sheet p { margin: 0; color: var(--ink); }
 
 .contact { padding: 0.2rem 0 1rem; }
+.contact a { color: var(--oxblood); }
 
 .contact-form { display: grid; max-width: 32rem; position: relative; }
 .contact-form > * + * { margin-top: 1rem; }

@@ -37,7 +37,7 @@ The Crafted.i.mentions Android app is recognised when the `User-Agent` contains 
 The storefront has no admin link of its own. The shop page in a normal browser is unchanged.
 
 ## Privacy
-`/privacy` (`public/privacy.html`) is linked from the footer. It says what the shop keeps to process an order, that you pay direct and we never see your banking login, and that details are shared only with the courier. For privacy questions, email once the shop address is set up. There is no contact email on the page yet.
+`/privacy` (`public/privacy.html`) is linked from the footer. It says what the shop keeps to process an order, that you pay direct and we never see your banking login, and that details are shared only with the courier. For privacy questions, email [teamcraftedimensions@gmail.com](mailto:teamcraftedimensions@gmail.com).
 
 ## Storage
 
@@ -45,13 +45,13 @@ Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) 
 
 Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). Each product keeps an ordered list of up to 8. With `DATABASE_URL` the bytes live in `product_gallery`, and a product's original single photo is also kept in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The main photo is served at `/img/p/<id>.webp`.
 
-Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. Contact messages (`POST /api/contact`) use the same honeypot and hourly limit and are stored with the shop data. Checkout is limited to 10 requests per 15 minutes per IP. Failed admin logins are limited to 10 per 15 minutes per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the message is written to the server log.
+Custom-print files (STL, 3MF, OBJ or an image, up to 20MB) are stored in `custom_files` (Postgres `bytea`) when `DATABASE_URL` is set, and in `data/uploads/custom/` otherwise. The request itself (not the file bytes) is kept with the other shop data. `POST /api/custom` checks the fields, ignores a filled honeypot, and allows 5 requests an hour per IP. Contact messages (`POST /api/contact`) use the same honeypot and hourly limit and are stored with the shop data. Checkout is limited to 10 requests per 15 minutes per IP. Failed admin logins are limited to 10 per 15 minutes per IP. If `SMTP_HOST` and `OWNER_EMAIL` are set, the owner is emailed; otherwise the message is written to the server log. From and Reply-To on those messages default to `teamcraftedimensions@gmail.com` (override with `SMTP_FROM` and `SMTP_REPLY_TO`). SMTP login is still `SMTP_USER` / `SMTP_PASS`.
 
 Postgres also keeps contact messages in `contact_messages`.
 
 ## Legal pages
 
-`/delivery`, `/returns` and `/terms` are linked from the footer. They use `[OWNER NAME]`, `[CONTACT EMAIL]` and `[BUSINESS ADDRESS]` and each shows a "Draft — for owner review" banner. Replace the placeholders before launch.
+`/delivery`, `/returns` and `/terms` are linked from the footer. They still use `[OWNER NAME]` and `[BUSINESS ADDRESS]` and each shows a "Draft — for owner review" banner. The shop email on the site is [teamcraftedimensions@gmail.com](mailto:teamcraftedimensions@gmail.com). Replace the name and address placeholders before launch.
 
 ## Materials, lead time and custom prints
 
