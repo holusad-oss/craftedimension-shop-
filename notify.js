@@ -1,12 +1,13 @@
 // Pluggable owner notifier. Uses SMTP when SMTP_HOST is set, otherwise logs to the console.
 const nodemailer = require('nodemailer');
+const { itemTitle } = require('./lib/resin-colour');
 const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 
 function formatOrder(o) {
   const a = (o.shipping && o.shipping.address) || {};
   const addr = [o.shipping && o.shipping.name, a.line1, a.line2, a.city, a.state, a.postal_code, a.country].filter(Boolean).join('\n');
   return `Crafted.i.mentions\n\nNew paid order ${o.id}\n\n` +
-    o.items.map(i => `${i.qty} × ${i.name} @ ${gbp.format(i.price)}`).join('\n') +
+    o.items.map(i => `${i.qty} × ${itemTitle(i)} @ ${gbp.format(i.price)}`).join('\n') +
     `\nPostage: ${o.postage ? gbp.format(o.postage) : 'FREE'}\n\nTotal paid: ${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}\nCustomer email: ${o.email || '-'}\n\nShip to:\n${addr || '(no address)'}\n`;
 }
 
@@ -25,7 +26,7 @@ async function orderPaid(order) {
   const text = formatOrder(order);
   const t = getTransport(), to = process.env.OWNER_EMAIL;
   if (!t || !to) { console.log('[notify] (no SMTP_HOST/OWNER_EMAIL set, logging instead)\n' + text); return { logged: true }; }
-  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Crafted.i.mentions — order ${order.id} — ${order.items.map(i => i.name).join(', ')}`.slice(0, 150), text });
+  await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER || to, to, subject: `Crafted.i.mentions — order ${order.id} — ${order.items.map(itemTitle).join(', ')}`.slice(0, 150), text });
   console.log(`[notify] emailed ${to} about order ${order.id}`);
   return { emailed: true };
 }

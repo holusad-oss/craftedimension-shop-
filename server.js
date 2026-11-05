@@ -8,6 +8,7 @@ const sharp = require('sharp');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const notify = require('./notify');
+const resinColour = require('./lib/resin-colour');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
@@ -205,6 +206,8 @@ const pub = p => {
     material: p.material || '', colour: p.colour || '', size_mm: size, sizeText: formatSizeText(size),
     detail: p.detail || '', finish: p.finish || 'raw', care_notes: p.care_notes || '',
     lead_time_days: Array.isArray(p.lead_time_days) ? p.lead_time_days : [3, 7],
+    colourOptions: resinColour.colourOptionsEnabled(p),
+    colours: resinColour.colourOptionsEnabled(p) ? resinColour.COLOURS : [],
   };
   const keys = Array.isArray(p.images) ? p.images : [];
   if (keys.length) {
@@ -266,28 +269,19 @@ app.get('/api/orders/:id/status', (req, res) => {
 });
 
 app.post('/api/checkout/session', checkoutLimit, async (req, res) => {
-  if (!PAYMENTS_ON) return res.status(503).json({ error: "Payments aren't set up yet — please check back soon or contact us to order.", notConfigured: true });
   const { items } = req.body || {};
-  if (!Array.isArray(items) || !items.length || items.length > 50) return res.status(400).json({ error: 'Your basket is empty.' });
-  const qty = {};
-  for (const it of items) {
-    const q = Math.floor(Number(it && it.qty));
-    if (!(q > 0 && q <= 100)) return res.status(400).json({ error: 'Invalid quantity.' });
-    qty[it.id] = (qty[it.id] || 0) + q;
+  const resolved = resinColour.resolveBasket(db.products, items);
+  if (resolved.error) {
+    const body = { error: resolved.error };
+    if (resolved.refresh) body.products = publicList();
+    return res.status(resolved.status || 400).json(body);
   }
-  const lines = [];
-  for (const [id, q] of Object.entries(qty)) {
-    const p = db.products.find(x => x.id === Number(id));
-    if (!p) return res.status(400).json({ error: `Unknown product ${id}.` });
-    if (p.hidden) return res.status(409).json({ error: `${p.name} isn't in the shop any more.`, products: publicList() });
-    if (!(p.price > 0)) return res.status(400).json({ error: `${p.name} can't be bought online yet.` });
-    if (p.stock < q) return res.status(409).json({ error: p.stock === 0 ? `${p.name} is sold out.` : `Only ${p.stock} of ${p.name} left.`, products: publicList() });
-    lines.push({ p, q });
-  }
+  if (!PAYMENTS_ON) return res.status(503).json({ error: "Payments aren't set up yet — please check back soon or contact us to order.", notConfigured: true });
+  const lines = resolved.lines;
   // Reserve stock now (synchronously, so no oversell); released if the session expires or is cancelled.
   lines.forEach(({ p, q }) => { p.stock -= q; });
   const order = { id: crypto.randomBytes(4).toString('hex').toUpperCase(), status: 'pending', createdAt: new Date().toISOString(),
-    items: lines.map(({ p, q }) => ({ id: p.id, name: p.name, qty: q, price: p.price })),
+    items: lines.map(resinColour.orderItem),
     currency: 'gbp' };
   const subP = lines.reduce((s, { p, q }) => s + pence(p.price) * q, 0), postP = postagePence(subP);
   order.subtotal = subP / 100; order.postage = postP / 100; order.total = (subP + postP) / 100;
@@ -298,7 +292,7 @@ app.post('/api/checkout/session', checkoutLimit, async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'gbp',
-      line_items: lines.map(({ p, q }) => ({ quantity: q, price_data: { currency: 'gbp', unit_amount: pence(p.price), product_data: { name: p.name } } })),
+      line_items: lines.map(line => ({ quantity: line.q, price_data: { currency: 'gbp', unit_amount: pence(line.p.price), product_data: { name: resinColour.itemTitle(resinColour.orderItem(line)) } } })),
       shipping_address_collection: { allowed_countries: ['GB'] },
       shipping_options: [{ shipping_rate_data: { type: 'fixed_amount', display_name: postP ? 'UK delivery' : 'Free UK delivery (orders £35+)',
         fixed_amount: { amount: postP, currency: 'gbp' } } }],
@@ -368,7 +362,7 @@ app.get('/checkout/success', async (req, res) => {
   const paid = order.status === 'paid' || order.status === 'sent';
   res.send(page(paid ? 'Thank you' : 'Payment processing', `<h1>${paid ? 'Thank you for your order!' : 'Your payment is being confirmed'}</h1>
 <p>Order <strong>${escH(order.id)}</strong> · ${gbpFmt.format(order.total)}${order.postage != null ? ` <span class="muted">(includes ${order.postage ? gbpFmt.format(order.postage) + ' postage' : 'free postage'})</span>` : ''}</p>
-<ul class="result-items">${order.items.map(i => `<li>${escH(i.qty)} × ${escH(i.name)}</li>`).join('')}</ul>
+<ul class="result-items">${order.items.map(i => `<li>${escH(i.qty)} × ${escH(resinColour.itemTitle(i))}</li>`).join('')}</ul>
 <p>${paid ? `We've received your payment${order.email ? ` and a receipt is on its way to <strong>${escH(order.email)}</strong>` : ''}. Your print will be made to order and we'll let you know when it's sent.` : "This usually takes a few seconds. You'll get an email receipt once it's confirmed."}</p>
 <p><a class="btn" href="/">Back to the shop</a></p>`));
 });
@@ -442,6 +436,9 @@ function clean(b, base = {}, full) {
     if (!Number.isFinite(max) || max < 0) max = 7;
     p.lead_time_days = [Math.min(min, max), Math.max(min, max)];
   }
+  // Absent on create: resin prints default to on. Absent on a partial edit: keep the saved flag.
+  if (b.colourOptions !== undefined) p.colourOptions = truthy(b.colourOptions);
+  else if (typeof p.colourOptions !== 'boolean') p.colourOptions = resinColour.isResinProduct(p);
   delete p.photoFile;
   return p;
 }

@@ -696,6 +696,32 @@ input:focus, textarea:focus, select:focus {
 .postage-hint { margin: 0.4rem 0 0; font-size: 1rem; color: var(--muted); }
 .postage-hint.ok { color: #1f5130; }
 
+.colour-pick { margin: 0 0.35rem 0.85rem; }
+.colour-pick .colour-label { margin: 0 0 0.4rem; font-weight: 700; color: var(--ink); }
+.colour-options { display: flex; flex-wrap: wrap; }
+.colour-btn {
+  margin: 0 0.45rem 0.45rem 0;
+  min-height: 44px;
+  min-width: 5.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 2px;
+  border: var(--hair);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.colour-btn:hover { color: var(--oxblood); }
+.colour-btn[aria-pressed="true"],
+.colour-btn[aria-pressed="true"]:hover {
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+  color: var(--paper);
+}
+.colour-need { margin: 0.15rem 0 0; color: #8a3d16; font-weight: 700; }
+
 .card .meta-line {
   margin: 0 0.35rem 0.3rem;
   color: var(--ink);

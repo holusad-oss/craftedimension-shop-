@@ -84,7 +84,11 @@
           <option value="Tough (ABS-like) resin"></option>
         </datalist>
       </label>
-      <label>Colour <input name="colour" maxlength="80" autocomplete="off"></label>
+      <label>Colour <input name="colour" maxlength="80" autocomplete="off">
+        <span class="hint">The colour written on the listing. Leave this as the piece is finished if shoppers are not choosing.</span>
+      </label>
+      <label class="check"><input type="checkbox" name="colourOptions" id="colour-options"> Shoppers choose a resin colour</label>
+      <p class="hint">Black, White, or Grey. On by default for a new resin print. Shoppers must pick one before it goes in the basket. Leave this off for a single-colour print.</p>
       <fieldset class="size-fields">
         <legend>Size</legend>
         <label>Height (cm) <input name="size_h" type="number" inputmode="decimal" min="0" step="any"></label>
@@ -141,6 +145,7 @@
     let products = [];
     let editing = null;
     let gallery = [];
+    let colourOptionsTouched = false;
 
     async function api(u, m, b) {
       const opt = { method: m || 'GET' };
@@ -174,9 +179,19 @@
       gallery = [];
       renderGallery();
     }
+    function resinGuess() {
+      return form.printType.value === 'Resin' || /\bresin\b/i.test(form.material.value || '');
+    }
+    function syncColourOptions() {
+      if (colourOptionsTouched) return;
+      form.colourOptions.checked = resinGuess();
+    }
     function resetForm() {
       editing = null;
+      colourOptionsTouched = true;
       form.reset();
+      colourOptionsTouched = false;
+      syncColourOptions();
       document.getElementById('form-title').textContent = 'Add a product';
       document.getElementById('save-product').textContent = 'Add product';
       cancelBtn.hidden = true;
@@ -196,6 +211,7 @@
     }
     function startEdit(p) {
       editing = p.id;
+      colourOptionsTouched = true;
       form.name.value = p.name || '';
       form.description.value = p.description || '';
       form.price.value = p.price;
@@ -212,6 +228,8 @@
       form.lead_min.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[0] : 3;
       form.lead_max.value = Array.isArray(p.lead_time_days) ? p.lead_time_days[1] : 7;
       form.sample.checked = !!p.sample;
+      form.colourOptions.checked = !!p.colourOptions;
+      colourOptionsTouched = true;
       photoInput.value = '';
       document.getElementById('form-title').textContent = 'Edit product';
       document.getElementById('save-product').textContent = 'Save changes';
@@ -230,7 +248,7 @@
         <h3>${esc(p.name)}</h3>
         <p>${esc(p.description || '')}</p>
         <p><span class="price">${gbp.format(p.price)}</span> · ${esc(p.printType || 'FDM')} · ${p.stock} in stock${p.sample ? ' · Sample' : ''}</p>
-        <p>${esc(p.material || '')}${p.colour ? ' · ' + esc(p.colour) : ''}${p.detail ? ' · ' + esc(p.detail) : ''}${p.images && p.images.length ? ' · ' + p.images.length + (p.images.length === 1 ? ' photo' : ' photos') : ''}</p>
+        <p>${esc(p.material || '')}${p.colour ? ' · ' + esc(p.colour) : ''}${p.colourOptions ? ' · Colour choice: Black, White, Grey' : ''}${p.detail ? ' · ' + esc(p.detail) : ''}${p.images && p.images.length ? ' · ' + p.images.length + (p.images.length === 1 ? ' photo' : ' photos') : ''}</p>
         <div class="prow">
           <button class="btn" type="button" data-edit>Edit</button>
           <button class="btn btn-ghost" type="button" data-hide>${p.hidden ? 'Show in shop' : 'Hide from shop'}</button>
@@ -261,7 +279,8 @@
       const badge = o => { const s = o.status || 'demo'; return `<span class="status status-${esc(s)}">${esc(s)}</span>` + (o.sentAt ? `<br><small>${new Date(o.sentAt).toLocaleDateString('en-GB')}</small>` : '') + (o.note ? `<br><small>${esc(o.note)}</small>` : ''); };
       const show = document.getElementById('showall');
       const orders = d.orders.slice().reverse().filter(o => show.checked || ['paid', 'sent', 'awaiting_payment'].includes(o.status));
-      document.getElementById('orders').innerHTML = orders.map(o => `<tr data-order="${esc(o.id)}"><td>${esc(o.id)}</td><td>${new Date(o.paidAt || o.createdAt).toLocaleString('en-GB')}</td><td>${badge(o)}</td><td>${esc(o.name || '')}<br>${esc(o.email || '')}</td><td>${addr(o)}</td><td>${o.items.map(i => esc(i.qty + '× ' + i.name)).join('<br>')}</td><td>${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}${o.postage != null ? `<br><small>${o.postage ? 'incl. ' + gbp.format(o.postage) + ' postage' : 'free postage'}</small>` : ''}</td><td>${o.status === 'paid' ? '<button class="btn small" data-sent>Mark sent</button>' : o.status === 'sent' ? '<button class="btn small btn-ghost" data-unsent>Undo</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8">No paid orders yet.</td></tr>';
+      const itemLabel = i => i.qty + '× ' + i.name + (i.colour ? ' — ' + i.colour : '');
+      document.getElementById('orders').innerHTML = orders.map(o => `<tr data-order="${esc(o.id)}"><td>${esc(o.id)}</td><td>${new Date(o.paidAt || o.createdAt).toLocaleString('en-GB')}</td><td>${badge(o)}</td><td>${esc(o.name || '')}<br>${esc(o.email || '')}</td><td>${addr(o)}</td><td>${o.items.map(i => esc(itemLabel(i))).join('<br>')}</td><td>${gbp.format(o.amountPaid != null ? o.amountPaid : o.total)}${o.postage != null ? `<br><small>${o.postage ? 'incl. ' + gbp.format(o.postage) + ' postage' : 'free postage'}</small>` : ''}</td><td>${o.status === 'paid' ? '<button class="btn small" data-sent>Mark sent</button>' : o.status === 'sent' ? '<button class="btn small btn-ghost" data-unsent>Undo</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8">No paid orders yet.</td></tr>';
     }
     photoInput.addEventListener('change', () => {
       const chosen = Array.from(photoInput.files || []);
@@ -297,9 +316,13 @@
       renderGallery();
     });
     cancelBtn.addEventListener('click', () => { resetForm(); say(''); });
+    form.printType.addEventListener('change', syncColourOptions);
+    form.material.addEventListener('input', syncColourOptions);
+    form.colourOptions.addEventListener('change', () => { colourOptionsTouched = true; });
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const fd = new FormData(form);
+      fd.set('colourOptions', form.colourOptions.checked ? 'true' : 'false');
       ['size_h', 'size_w', 'size_l'].forEach(name => fd.set(name, mmField(fd.get(name))));
       let added = 0;
       const order = gallery.map(item => {
