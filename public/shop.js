@@ -1,7 +1,12 @@
 document.getElementById('year').textContent = new Date().getFullYear();
 const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 const CUBE = '<svg class="cube-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path fill="#a94f20" d="M10 18 32 30 32 54 10 42Z"/><path fill="#c4622d" d="M54 18 32 30 32 54 54 42Z"/><path fill="#c4622d" d="M32 6 46.7 14 17.3 14Z"/><path fill="#e6a94a" d="M17.3 14 46.7 14 54 18 46.7 22 17.3 22 10 18Z"/><path fill="#c4622d" d="M17.3 22 46.7 22 32 30Z"/></svg>';
-let products = [], cart = {}, filter = 'All', shownSlide = {};
+let products = [], cart = {}, filter = 'All', shownSlide = {}, chosenColour = {}, colourMissing = {};
+const FALLBACK_COLOURS = [
+  { id: 'black', label: 'Black' },
+  { id: 'white', label: 'White' },
+  { id: 'grey', label: 'Grey' },
+];
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 function leadText(p) {
@@ -32,9 +37,56 @@ function stockText(p) {
   if (p.stock <= 3) return '<span class="stock low">Only ' + p.stock + ' left</span>';
   return '';
 }
+function colourChoices(p) {
+  if (!p || !p.colourOptions) return [];
+  if (Array.isArray(p.colours) && p.colours.length) {
+    return p.colours.map(c => ({ id: String(c.id || ''), label: String(c.label || c.id || '') })).filter(c => c.id && c.label);
+  }
+  return FALLBACK_COLOURS;
+}
+// Prefix the id so a plain line ("p6") is not an integer key. Integer keys are
+// listed first, which would float an FDM line above resin colours added earlier.
+function lineBody(key) {
+  const s = String(key);
+  return s.charAt(0) === 'p' ? s.slice(1) : s;
+}
+function lineProductId(key) { return lineBody(key).split(':')[0]; }
+function lineColour(key) {
+  const s = lineBody(key);
+  const i = s.indexOf(':');
+  return i === -1 ? '' : s.slice(i + 1);
+}
+function lineKey(id, colour) { return colour ? 'p' + id + ':' + colour : 'p' + id; }
+function productQty(id) {
+  const want = String(id);
+  return Object.keys(cart).reduce((sum, key) => lineProductId(key) === want ? sum + (cart[key] || 0) : sum, 0);
+}
+function colourLabelOf(p, id) {
+  const choice = colourChoices(p).find(c => c.id === id);
+  return choice ? choice.label : id;
+}
+function lineTitle(p, key) {
+  const colour = lineColour(key);
+  return colour ? p.name + ' \u2014 ' + colourLabelOf(p, colour) : p.name;
+}
+function colourPicker(p) {
+  const choices = colourChoices(p);
+  if (!choices.length) return '';
+  const selected = chosenColour[String(p.id)] || '';
+  const missing = !!colourMissing[String(p.id)] && !choices.some(c => c.id === selected);
+  const buttons = choices.map(c => {
+    const on = c.id === selected;
+    return `<button type="button" class="colour-btn" data-colour="${esc(c.id)}" data-id="${p.id}" aria-pressed="${on ? 'true' : 'false'}">${esc(c.label)}</button>`;
+  }).join('');
+  return `<div class="colour-pick">
+    <p class="colour-label" id="colour-label-${p.id}">Colour</p>
+    <div class="colour-options" role="radiogroup" aria-labelledby="colour-label-${p.id}"${missing ? ' aria-invalid="true"' : ''}>${buttons}</div>
+    <p class="colour-need"${missing ? '' : ' hidden'}>Choose Black, White, or Grey.</p>
+  </div>`;
+}
 function render() {
   document.getElementById('grid').innerHTML = products.filter(p => filter === 'All' || p.printType === filter).map(p => {
-    const inCart = cart[p.id] || 0, avail = p.stock - inCart;
+    const inCart = productQty(p.id), avail = p.stock - inCart;
     const st = stockText(p);
     const shots = Array.isArray(p.images) && p.images.length ? p.images : (p.image ? [{ url: p.image, thumb: p.thumb || p.image }] : []);
     const slide = shots.length ? Math.min(shownSlide[p.id] || 0, shots.length - 1) : 0;
@@ -45,11 +97,12 @@ function render() {
           ? `<button type="button" class="photo-arrow photo-prev" data-photo="prev" data-id="${p.id}" aria-label="Previous photo">‹</button><button type="button" class="photo-arrow photo-next" data-photo="next" data-id="${p.id}" aria-label="Next photo">›</button><span class="photo-count">${slide + 1} / ${shots.length}</span>`
           : '')
       : CUBE;
-    const meta = [p.material, p.colour, sizeText(p)].filter(Boolean).map(esc).join(' \u00b7 ');
+    const meta = [p.material, p.colourOptions ? '' : p.colour, sizeText(p)].filter(Boolean).map(esc).join(' \u00b7 ');
+    const colourDetail = p.colourOptions ? colourChoices(p).map(c => c.label).join(', ') : (p.colour || '\u2014');
     const specs = `<details class="specs"><summary>Print details</summary>
       <dl class="spec">
         <dt>Material</dt><dd>${esc(p.material || '\u2014')}</dd>
-        <dt>Colour</dt><dd>${esc(p.colour || '\u2014')}</dd>
+        <dt>Colour</dt><dd>${esc(colourDetail)}</dd>
         <dt>Size</dt><dd>${esc(sizeText(p) || '\u2014')}</dd>
         <dt>Detail</dt><dd>${esc(p.detail || '\u2014')}</dd>
         <dt>Finish</dt><dd>${esc(finishLabel(p.finish) || '\u2014')}</dd>
@@ -64,18 +117,20 @@ function render() {
       ${meta ? `<p class="meta-line">${meta}</p>` : ''}
       <p class="lead-line">${esc(leadText(p))}</p>
       ${specs}
+      ${colourPicker(p)}
       <div class="card-foot"><div><span class="price">${gbp.format(p.price)}</span>${st ? '<br>' + st : ''}</div>
       <button class="btn small" data-add="${p.id}" ${avail <= 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : avail <= 0 ? 'All in basket' : 'Add to basket'}</button></div>
     </article>`;
   }).join('') || '<p class="muted">' + (products.length ? 'No products in this category yet.' : 'No products yet.') + '</p>';
-  const ids = Object.keys(cart).filter(id => cart[id] > 0);
+  const keys = Object.keys(cart).filter(key => cart[key] > 0);
   let total = 0;
-  document.getElementById('cart-lines').innerHTML = ids.length ? ids.map(id => {
-    const p = products.find(x => x.id == id); if (!p) return '';
-    total += p.price * cart[id];
-    return `<div class="cart-line"><span>${esc(p.name)}</span><span><button data-dec="${id}" aria-label="Remove one">−</button> ${cart[id]} <button data-add="${id}" aria-label="Add one" ${cart[id] >= p.stock ? 'disabled' : ''}>+</button></span><span class="price">${gbp.format(p.price * cart[id])}</span></div>`;
+  document.getElementById('cart-lines').innerHTML = keys.length ? keys.map(key => {
+    const p = products.find(x => String(x.id) === lineProductId(key)); if (!p) return '';
+    const title = lineTitle(p, key);
+    total += p.price * cart[key];
+    return `<div class="cart-line"><span>${esc(title)}</span><span><button data-dec="${esc(key)}" aria-label="Remove one ${esc(title)}">−</button> ${cart[key]} <button data-inc="${esc(key)}" aria-label="Add one ${esc(title)}" ${productQty(p.id) >= p.stock ? 'disabled' : ''}>+</button></span><span class="price">${gbp.format(p.price * cart[key])}</span></div>`;
   }).join('') + basketTotals(total) : '<p class="muted">Your basket is empty.</p>';
-  document.getElementById('cart-count').textContent = ids.reduce((s, id) => s + cart[id], 0);
+  document.getElementById('cart-count').textContent = keys.reduce((s, key) => s + cart[key], 0);
 }
 // Display only — the server recalculates postage from its own prices at checkout.
 const FREE_FROM = 35, POSTAGE = 3.5;
@@ -88,7 +143,27 @@ function basketTotals(sub) {
 }
 function setProducts(list) {
   products = list;
-  for (const id in cart) { const p = products.find(x => x.id == id); cart[id] = p ? Math.min(cart[id], p.stock) : 0; }
+  const next = {};
+  const used = {};
+  Object.keys(cart).forEach(key => {
+    const id = lineProductId(key);
+    const p = products.find(x => String(x.id) === id);
+    if (!p) return;
+    let colour = lineColour(key);
+    const choices = colourChoices(p);
+    if (choices.length) {
+      if (!choices.some(c => c.id === colour)) return;
+    } else colour = '';
+    let q = Math.floor(Number(cart[key]));
+    if (!(q > 0)) return;
+    const room = p.stock - (used[id] || 0);
+    if (room <= 0) return;
+    q = Math.min(q, room);
+    const storeKey = lineKey(id, colour);
+    next[storeKey] = (next[storeKey] || 0) + q;
+    used[id] = (used[id] || 0) + q;
+  });
+  cart = next;
   render();
   if (viewerId != null && viewer && !viewer.hidden) openViewer(viewerId);
 }
@@ -150,10 +225,56 @@ document.addEventListener('click', e => {
   }
   const c = e.target.closest('[data-filter]');
   if (c) { filter = c.dataset.filter; document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x === c)); render(); return; }
-  const a = e.target.closest('[data-add]'), d = e.target.closest('[data-dec]');
-  if (a && !a.disabled) { const id = a.dataset.add, p = products.find(x => x.id == id); if ((cart[id] || 0) < p.stock) cart[id] = (cart[id] || 0) + 1; render(); }
-  if (d) { cart[d.dataset.dec]--; render(); }
+  const colourBtn = e.target.closest('[data-colour]');
+  if (colourBtn) {
+    const id = String(colourBtn.dataset.id);
+    const colour = colourBtn.dataset.colour;
+    chosenColour[id] = colour;
+    colourMissing[id] = false;
+    render();
+    const again = document.querySelector('[data-colour="' + colour + '"][data-id="' + id + '"]');
+    if (again) again.focus();
+    return;
+  }
+  const a = e.target.closest('[data-add]');
+  const inc = e.target.closest('[data-inc]');
+  const d = e.target.closest('[data-dec]');
+  if (a && !a.disabled) addProduct(a.dataset.add);
+  if (inc && !inc.disabled) addLine(inc.dataset.inc);
+  if (d) {
+    const key = d.dataset.dec;
+    cart[key] = (cart[key] || 0) - 1;
+    if (cart[key] <= 0) delete cart[key];
+    render();
+  }
 });
+function addProduct(id) {
+  const p = products.find(x => String(x.id) === String(id));
+  if (!p || productQty(p.id) >= p.stock) return;
+  const choices = colourChoices(p);
+  let colour = '';
+  if (choices.length) {
+    colour = chosenColour[String(p.id)] || '';
+    if (!choices.some(c => c.id === colour)) {
+      colourMissing[String(p.id)] = true;
+      render();
+      const first = document.querySelector('[data-colour][data-id="' + p.id + '"]');
+      if (first) first.focus();
+      return;
+    }
+  }
+  colourMissing[String(p.id)] = false;
+  const key = lineKey(p.id, colour);
+  cart[key] = (cart[key] || 0) + 1;
+  render();
+}
+function addLine(key) {
+  const id = lineProductId(key);
+  const p = products.find(x => String(x.id) === id);
+  if (!p || productQty(p.id) >= p.stock || !cart[key]) return;
+  cart[key] += 1;
+  render();
+}
 if (viewer) {
   document.getElementById('viewer-close').addEventListener('click', () => closeViewer(false));
   document.getElementById('viewer-prev').addEventListener('click', () => { if (viewerId != null) { stepPhoto(viewerId, -1); openViewer(viewerId); } });
@@ -201,14 +322,14 @@ function setCheckoutMode(on) {
   }
 }
 function orderSummary() {
-  const ids = Object.keys(cart).filter(id => cart[id] > 0);
-  if (!ids.length) return '';
+  const keys = Object.keys(cart).filter(key => cart[key] > 0);
+  if (!keys.length) return '';
   let sub = 0;
-  const lines = ids.map(id => {
-    const p = products.find(x => x.id == id);
+  const lines = keys.map(key => {
+    const p = products.find(x => String(x.id) === lineProductId(key));
     if (!p) return '';
-    sub += p.price * cart[id];
-    return cart[id] + ' \u00d7 ' + p.name + ' \u2014 ' + gbp.format(p.price * cart[id]);
+    sub += p.price * cart[key];
+    return cart[key] + ' \u00d7 ' + lineTitle(p, key) + ' \u2014 ' + gbp.format(p.price * cart[key]);
   }).filter(Boolean);
   const subP = Math.round(sub * 100), post = subP >= FREE_FROM * 100 ? 0 : POSTAGE;
   return 'Hello, I would like to order:\n\n' + lines.join('\n') +
@@ -242,7 +363,12 @@ document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault();
   if (!paymentsOn) return;
   const msg = document.getElementById('checkout-msg'), btn = document.getElementById('checkout-btn');
-  const items = Object.entries(cart).filter(([, q]) => q > 0).map(([id, qty]) => ({ id: +id, qty }));
+  const items = Object.entries(cart).filter(([, q]) => q > 0).map(([key, qty]) => {
+    const item = { id: +lineProductId(key), qty };
+    const colour = lineColour(key);
+    if (colour) item.colour = colour;
+    return item;
+  });
   if (!items.length) { msg.className = 'err'; msg.textContent = 'Add something to your basket first.'; return; }
   btn.disabled = true; msg.className = ''; msg.textContent = 'Taking you to secure checkout…';
   try {

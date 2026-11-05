@@ -9,6 +9,7 @@ const SEED_FILE = path.join(__dirname, 'data', 'seed.json');
 const UPLOAD_DIR = path.join(__dirname, 'data', 'uploads');
 const CUSTOM_DIR = path.join(UPLOAD_DIR, 'custom');
 const FINISHES = ['raw', 'sanded', 'primed', 'painted'];
+const resinColour = require('./lib/resin-colour');
 
 // Sample specs keyed by product name. Used only when a field is missing, so a later edit is kept.
 const SAMPLE_SPECS = {
@@ -154,6 +155,7 @@ function migrateProduct(p) {
   }
   const hasPhoto = images.length > 0;
   if (!!p.photo !== hasPhoto) { p.photo = hasPhoto; changed = true; }
+  if (resinColour.ensureColourOptions(p)) changed = true;
   return changed;
 }
 
