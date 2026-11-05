@@ -1,10 +1,10 @@
 # Crafted.i.mentions shop
 
-Small Express shop for 3D printed products (FDM & resin) with live stock counts, Stripe Checkout (GBP, UK delivery) and a password-protected admin page.
+Small Express shop for 3D printed products (FDM & resin) with live stock counts, bank transfer enquiries by email, and a password-protected admin page.
 
-> Payments use Stripe Checkout in test mode unless the owner deliberately sets `STRIPE_ALLOW_LIVE=1`. Without `STRIPE_SECRET_KEY` the shop still runs: the basket button reads "Card payments coming soon" and an "Order by message" link opens the contact form with the basket summary filled in. Live keys are refused unless `STRIPE_ALLOW_LIVE=1`.
+> Card checkout is closed. The basket asks the shopper to email [teamcraftedimensions@gmail.com](mailto:teamcraftedimensions@gmail.com) for bank transfer instructions. The link is a normal mailto. The shop does not send it, does not store it as an order, and does not treat it as payment. Bank account details are not published on the site. `POST /api/checkout/session` no longer starts a card payment, even if `STRIPE_SECRET_KEY` is set.
 
-See `.env.example` for all settings. Webhook endpoint: `POST /api/stripe/webhook` (event `checkout.session.completed`, plus `checkout.session.expired` to release reserved stock). Paid orders appear in `/admin` where they can be marked as sent.
+See `.env.example` for all settings. `POST /api/stripe/webhook` remains so an older card payment can still be recorded (`checkout.session.completed`, plus `checkout.session.expired` to release reserved stock). Those orders stay in `/admin`, where a paid one can be marked as sent. Do not delete that history.
 
 ## Run locally
 ```bash
@@ -59,4 +59,4 @@ Postgres also keeps contact messages in `contact_messages`.
 
 ## Postage
 
-UK postage is £3.50, free when the goods subtotal is £35 or more. It is calculated on the server and sent to Stripe as a fixed-amount shipping rate.
+UK postage is £3.50, free when the goods subtotal is £35 or more. The basket shows the same figures in the bank transfer email. The shop does not take the payment itself.

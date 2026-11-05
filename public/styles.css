@@ -787,12 +787,7 @@ input:focus, textarea:focus, select:focus {
 #custom-msg.err, #contact-msg.err { color: #8a3d16; }
 #custom-msg.ok, #contact-msg.ok { color: var(--oxblood); }
 .order-by-message { margin: 0.15rem 0 0; }
-.order-by-message a, a.order-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--oxblood);
-}
+.order-by-message a.btn { width: 100%; text-align: center; }
 .draft-banner {
   margin: 0 0 1rem;
   padding: 0.85rem 1rem;
