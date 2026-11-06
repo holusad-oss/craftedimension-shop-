@@ -7,7 +7,7 @@ const { spawn } = require('node:child_process');
 const root = path.join(__dirname, '..');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 
-const ABOUT = 'Crafted.i.mentions. specialises in skulls, gothic oddities, and curious pieces — made to leave your shelves a little haunted. Each piece starts as a careful FDM or resin print, then gets a hand finish so paint, wear, and detail land with a real twist — never factory-flat. With passion for a craft, design and art, every piece is unique.';
+const ABOUT = 'With passion for design, art and craft, every piece is unique. Crafted.i.mentions. specialises in skulls, gothic oddities, and curious pieces — made to leave your shelves a little haunted. Each piece starts as a careful FDM or resin print, then gets a hand finish so paint, wear, and detail land with a real twist — never factory-flat.';
 
 const CUSTOMER_FILES = [
   'public/index.html',
