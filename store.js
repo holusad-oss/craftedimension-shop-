@@ -4,9 +4,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const DB_FILE = path.join(__dirname, 'data', 'db.json');
-const SEED_FILE = path.join(__dirname, 'data', 'seed.json');
-const UPLOAD_DIR = path.join(__dirname, 'data', 'uploads');
+// Catalogue seed always lives in the repo. Live db.json and uploads go to DATA_DIR
+// when set (for a Render disk mounted at /var/data), otherwise to the repo data/ folder.
+// Do not mount a disk over the repo data/ path: that would hide seed.json.
+const REPO_DATA_DIR = path.join(__dirname, 'data');
+const SEED_FILE = path.join(REPO_DATA_DIR, 'seed.json');
+function resolveDataDir() {
+  const raw = String(process.env.DATA_DIR || '').trim();
+  return raw ? path.resolve(raw) : REPO_DATA_DIR;
+}
+const DATA_DIR = resolveDataDir();
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const CUSTOM_DIR = path.join(UPLOAD_DIR, 'custom');
 const FINISHES = ['raw', 'sanded', 'primed', 'painted'];
 const resinColour = require('./lib/resin-colour');
@@ -234,12 +243,16 @@ function customId(id) {
 }
 
 class JsonStore {
-  constructor() { this.kind = 'json-file'; }
+  constructor() {
+    this.kind = 'json-file';
+    this.dataDir = DATA_DIR;
+  }
   async init() {
-    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+    fs.mkdirSync(DATA_DIR, { recursive: true });
     const { state, from, changed } = seedState();
     if (!fs.existsSync(DB_FILE) || changed) this.write(state);
-    console.log(`[store] JSON file ${DB_FILE} (${from === 'data/db.json' ? 'existing' : 'seeded from data/seed.json'})`);
+    const origin = from === 'data/db.json' ? 'existing' : 'seeded from ' + SEED_FILE;
+    console.log(`[store] JSON file ${DB_FILE} (${origin})`);
     return state;
   }
   write(d) { const t = DB_FILE + '.tmp'; fs.writeFileSync(t, JSON.stringify(d, null, 2)); fs.renameSync(t, DB_FILE); }

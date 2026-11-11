@@ -11,7 +11,7 @@ See `.env.example` for all settings. `POST /api/stripe/webhook` remains so an ol
 npm install
 ADMIN_PASSWORD=choose-a-password npm start   # http://localhost:3000, admin at /admin
 ```
-If `ADMIN_PASSWORD` is not set, a random password is generated and printed to the console at startup.
+If `ADMIN_PASSWORD` is not set, a random password is generated for that process and will change on restart. The value is never written to the logs.
 
 ## Data
 - `data/seed.json` – starting catalogue. It is an empty list, so a fresh boot has no products until they are added in `/admin` (with photos).
@@ -20,7 +20,7 @@ If `ADMIN_PASSWORD` is not set, a random password is generated and printed to th
 ## Deploy on Render
 - Runtime: Node · Build: `npm install` · Start: `node server.js`
 - Env: `ADMIN_PASSWORD` (required for a stable admin login). `PORT` is set by Render automatically.
-- Storage is a JSON file: on Render's free plan the disk is ephemeral, so stock/orders reset on every redeploy/restart. Attach a persistent disk mounted at `/opt/render/project/src/data` (paid) to keep them.
+- Storage is a JSON file: on Render's free plan the disk is ephemeral, so stock/orders reset on every redeploy/restart. On a paid instance, attach a persistent disk mounted at `/var/data` and set `DATA_DIR=/var/data` so `db.json` and uploads survive. Do not mount the disk over the repo `data/` folder, which would hide `data/seed.json`.
 - `GET /healthz` returns `ok` and is what `.github/workflows/keep-awake.yml` curls every 10 minutes, so a free Render service is less likely to spin down. GitHub may delay or disable scheduled runs on inactive repositories, so this is a best effort, not a guarantee. You can also run the workflow by hand.
 
 ## API
@@ -41,7 +41,7 @@ The storefront has no admin link of its own. The shop page in a normal browser i
 
 ## Storage
 
-Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`, `product_images`, `product_gallery`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses the local `data/db.json` file (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
+Set `DATABASE_URL` to a Postgres connection string (Neon or Supabase free tier) and the shop creates its tables (`products`, `orders`, `meta`, `product_images`, `product_gallery`) on first start and seeds them from `data/db.json` if present, otherwise from `data/seed.json`. Without `DATABASE_URL` it uses a local JSON file: `DATA_DIR/db.json` when `DATA_DIR` is set, otherwise `data/db.json` (fine for development, not for Render's free plan, where the disk is wiped on every deploy/restart).
 
 Product photos are resized to WebP (at most 1200px, plus a 400px thumbnail). Each product keeps an ordered list of up to 8. With `DATABASE_URL` the bytes live in `product_gallery`, and a product's original single photo is also kept in `product_images`, so they survive an ephemeral disk. Otherwise they are files in `data/uploads/` (git-ignored). The main photo is served at `/img/p/<id>.webp`.
 
