@@ -621,10 +621,15 @@ async function start() {
   db = await store.init();
   app.listen(PORT, () => {
   console.log(`Storage: ${store.kind}`);
+  if (store.dataDir) console.log(`Data directory: ${store.dataDir}`);
   console.log('Card checkout is closed. Shoppers email the shop for bank transfer instructions.');
   if (PAYMENTS_ON && !WEBHOOK_SECRET) console.warn('STRIPE_WEBHOOK_SECRET is not set: historical paid orders will not be recorded from webhooks.');
   console.log(`Crafted.i.mentions demo shop on http://localhost:${PORT}`);
-  console.log(`Admin: http://localhost:${PORT}/admin  password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? ' (from env)' : ' (random, generated at startup — set ADMIN_PASSWORD to fix it)'}`);
+  if (process.env.ADMIN_PASSWORD) {
+    console.log(`Admin: http://localhost:${PORT}/admin  Admin password is set from ADMIN_PASSWORD.`);
+  } else {
+    console.log(`Admin: http://localhost:${PORT}/admin  ADMIN_PASSWORD is not set; a random password was generated for this process and will change on restart. Set ADMIN_PASSWORD to keep it stable.`);
+  }
 });
 }
 start().catch(e => { console.error('Startup failed:', e.message); process.exit(1); });
